@@ -165,7 +165,10 @@ MainWindow::MainWindow()
     sankeyOutputHistory=true;
     menuconfig=false;
     importedDBFile = false;
-}
+    recentFileAccess.clear();
+    connectionString.append("Driver=QSQLITE;");//connectionType
+    connectionString.append("Server=localhost;");//host address
+    connectionString.append("Database=").append("None").append(";");}
 
 MainWindow::~MainWindow()
 {
@@ -226,22 +229,35 @@ void MainWindow::dbGetFilePAth(bool bl, QString smpDBPath, bool run)
                     //    emit releaseDatabase();
                     QDir dir =QFileInfo(dbPath).absoluteDir();
                     homeDirectory = dir.absolutePath();
+                    setCurrentFile(dbPath);
                 }
             }
             else
             {
                 dbPath = smpDBPath;
+                if(dbPath.contains(".db"))
+                {
+                    setCurrentFile(dbPath);
+                }
+                else if(!dbPath.isEmpty())
+                {
+                    setCurrentFile(dbPath.append(".db"));
+                    dbPath.remove(".db");
+                }
             }
         }
         else if (connectionString.contains("QPSQL"))
         {
             conType="QPSQL";
             dbPath = smpDBPath;
+            if(!dbPath.isEmpty())
+            {
+                setCurrentFile(dbPath);
+            }
         }
         //emit path to db class for processing
         if(!dbPath.isEmpty())
         {
-            setCurrentFile(dbPath);
             clearAllLabels();
             lineGraphDock->setVisible(true);
             barGraphDock->setVisible(true);
@@ -284,7 +300,7 @@ void MainWindow::dbGetFilePAth(bool bl, QString smpDBPath, bool run)
     }
     else
     {
-        displayMessage("Database Import", "Please Configure Database and then Import");
+        displayMessage("Database Import", "Database connection is not configured");
     }
 }
 
@@ -2690,6 +2706,59 @@ QString MainWindow::generateTimeStamp()
     return timeStamp;
 }
 
+void MainWindow::postgresRecentAccess()
+{
+    QStringList connString = connectionString.split(";");
+    connectionString.clear();
+    for(int i = 0 ; i < connString.length() ; ++ i)
+    {
+        if(i==1)
+        {
+            connectionString.append("Database=").append(recentFileAccess).append(";");
+        }
+        else
+        {
+            QString str = connString.at(i);
+            if(!str.trimmed().isEmpty())
+            {
+                connectionString.append(str).append(";");
+            }
+        }
+    }
+
+    dbGetFilePAth(true,recentFileAccess,false);
+    recentFileAccess.clear();
+
+}
+
+void MainWindow::removeFromRecentFileHistory(QString fileName)
+{
+    QMessageBox msgBox;
+    msgBox.setText(QString(fileName+" not found !\n"
+                           + "Do you want to remove it from the recently accessed list ?"));
+    QPushButton *yesButton = msgBox.addButton(tr("Yes"), QMessageBox::ActionRole);
+    QPushButton *noButton = msgBox.addButton(QMessageBox::No);
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == yesButton)
+    {
+        QStringList files = recentFileSettings.value("recentFileList").toStringList();
+        recentFileSettings.remove("recentFileList");
+
+        int index = files.indexOf(fileName);
+        files.removeAt(index);
+
+        recentFileSettings.setValue("recentFileList",files);
+
+        updateRecentFileActions();
+    }
+    else if (msgBox.clickedButton() == noButton)
+    {
+        msgBox.close();
+    }
+}
+
 void MainWindow::connectionStrPath(QString str)
 {
     connectionString = str;
@@ -2697,6 +2766,18 @@ void MainWindow::connectionStrPath(QString str)
     if(menuconfig == false)
     {
         runPushButtonClicked(true);
+    }
+    if(!recentFileAccess.isEmpty() && connectionString.contains("QPSQL"))
+    {
+        getPostgresDBList(connectionString,false);
+    }
+    else
+    {
+        if(!recentFileAccess.contains(".db") && !recentFileAccess.isEmpty())
+        {
+            displayMessage("Database","Please configure Postgres Database with Valid Credentials");
+            recentFileAccess.clear();
+        }
     }
 }
 
@@ -2753,60 +2834,63 @@ QString MainWindow::strippedName(const QString &fullFileName)
 
 void MainWindow::loadRecentFile(const QString &fileName)
 {
-    QFileInfo checkFileValid(fileName);
-
-    if (checkFileValid.exists() && checkFileValid.isFile())
+    if(!fileName.isEmpty())
     {
-        QDir dir =QFileInfo(fileName).absoluteDir();
-        homeDirectory = dir.absolutePath();
+        QFileInfo checkFileValid(fileName);
 
-        if(fileName.endsWith(".csv") || fileName.endsWith(".CSV"))
+        if (checkFileValid.exists() && checkFileValid.isFile())
         {
-            checkCSVtype(fileName);
+            QDir dir =QFileInfo(fileName).absoluteDir();
+            homeDirectory = dir.absolutePath();
+
+            if(fileName.endsWith(".csv") || fileName.endsWith(".CSV"))
+            {
+                checkCSVtype(fileName);
+            }
+            else if(fileName.endsWith(".xml") || fileName.endsWith(".XML"))
+            {
+                importXmlGetFilePath(true,fileName);
+            }
+            else if(fileName.endsWith(".db") || fileName.endsWith(".DB"))
+            {
+                useHistory=false;
+                if(!connectionString.contains("QSQLITE"))
+                {
+                    connectionString.clear();
+                    connectionString.append("Driver=QSQLITE;");//connectionType
+                    connectionString.append("Database=").append("None").append(";");
+                }
+                dbGetFilePAth(true,fileName);
+            }
+            else
+            {
+                displayMessage("Recent File", "A File and a Database Exists with same name");
+            }
         }
-        else if(fileName.endsWith(".xml") || fileName.endsWith(".XML"))
+        else if (!fileName.contains("."))
         {
-            importXmlGetFilePath(true,fileName);
-        }
-        else if(fileName.endsWith(".db") || fileName.endsWith(".DB"))
-        {
-            dbGetFilePAth(true,fileName);
+            useHistory=false;
+            recentFileAccess = fileName;
+            if(!connectionString.contains("QPSQL"))
+            {
+                //POSTGRESQL
+                menuconfig = true;
+                configureDB(true);
+            }
+            else
+            {
+                emit getPostgresDBList(connectionString,false);
+            }
         }
         else
         {
-            //POSTGRESQL
-            //             dbGetFilePAth(true,fileName,false);
+            removeFromRecentFileHistory(fileName);
         }
     }
     else
     {
-
-        QMessageBox msgBox;
-        msgBox.setText(QString(fileName+" not found !\n"
-                               + "Do you want to remove it from the recently accessed list ?"));
-        QPushButton *yesButton = msgBox.addButton(tr("Yes"), QMessageBox::ActionRole);
-        QPushButton *noButton = msgBox.addButton(QMessageBox::No);
-
-        msgBox.exec();
-
-        if (msgBox.clickedButton() == yesButton)
-        {
-            QStringList files = recentFileSettings.value("recentFileList").toStringList();
-            recentFileSettings.remove("recentFileList");
-
-            int index = files.indexOf(fileName);
-            files.removeAt(index);
-
-            recentFileSettings.setValue("recentFileList",files);
-
-            updateRecentFileActions();
-        }
-        else if (msgBox.clickedButton() == noButton)
-        {
-            msgBox.close();
-        }
+        removeFromRecentFileHistory(fileName);
     }
-
 }
 
 void MainWindow::intializeHomeDirectory()

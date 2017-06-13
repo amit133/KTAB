@@ -153,54 +153,62 @@ void Database::openDB(QString dbPath, QString dbType, QString connectionString, 
 
 void Database::checkPostgresDB(QString connectionString, bool imp)
 {
-    dbPostgres = QSqlDatabase::addDatabase("QPSQL","checkDB");
-    dbPostgres.setDatabaseName("postgres");
-
-    QStringList connectionParameters = connectionString.split(";");
-
-    QStringList connectionValues;
-    if(connectionParameters.length()>=5)
+    if(connectionString.contains("QPSQL"))
     {
-        QString server = connectionParameters.at(4); //server
-        connectionValues = server.split("=");
+        dbPostgres = QSqlDatabase::addDatabase("QPSQL","checkDB");
 
-        server  = connectionValues.at(1);
-        dbPostgres.setHostName(server);
+        QStringList connectionParameters = connectionString.split(";");
+        QStringList connectionValues;
 
-        if(connectionString.contains("Port"))
+        QString dbNm = connectionParameters.at(1); // DB
+        connectionValues = dbNm.split("=");
+        dbNm  = connectionValues.at(1);
+        dbPostgres.setDatabaseName(dbNm);
+        qDebug()<<dbNm << "database";
+
+        if(connectionParameters.length()>=5)
         {
-            QString port = connectionParameters.at(5);
-            connectionValues = port.split("=");
+            QString server = connectionParameters.at(4); //server
+            connectionValues = server.split("=");
 
-            port  = connectionValues.at(1);
-            dbPostgres.setPort(port.toInt());
-        }
-        else
-        {
-            dbPostgres.setPort(5432);
-        }
+            server  = connectionValues.at(1);
+            dbPostgres.setHostName(server);
 
-        QString uId = connectionParameters.at(2); // Uid
-        connectionValues = uId.split("=");
-        uId  = connectionValues.at(1);
-
-        QString pwd = connectionParameters.at(3); //Pwd
-        connectionValues = pwd.split("=");
-        pwd  = connectionValues.at(1);
-
-        if(!dbPostgres.open(uId,pwd))
-        {
-            emit Message("Database Error", dbPostgres.lastError().text());
-        }
-        else
-        {
-            qry = new QSqlQuery(dbPostgres);
-            getDatabaseList(imp);
-
-            if(dbPostgres.isOpen())
+            if(connectionString.contains("Port"))
             {
-                dbPostgres.close();
-                QSqlDatabase::removeDatabase("checkDB");
+                QString port = connectionParameters.at(5);
+                connectionValues = port.split("=");
+
+                port  = connectionValues.at(1);
+                dbPostgres.setPort(port.toInt());
+            }
+            else
+            {
+                dbPostgres.setPort(5432);
+            }
+
+            QString uId = connectionParameters.at(2); // Uid
+            connectionValues = uId.split("=");
+            uId  = connectionValues.at(1);
+
+            QString pwd = connectionParameters.at(3); //Pwd
+            connectionValues = pwd.split("=");
+            pwd  = connectionValues.at(1);
+
+            if(!dbPostgres.open(uId,pwd))
+            {
+                emit Message("Database Error", dbPostgres.lastError().text());
+            }
+            else
+            {
+                qry = new QSqlQuery(dbPostgres);
+                getDatabaseList(imp);
+
+                if(dbPostgres.isOpen())
+                {
+                    dbPostgres.close();
+                    QSqlDatabase::removeDatabase("checkDB");
+                }
             }
         }
     }
@@ -592,7 +600,7 @@ void Database::getDatabaseList(bool imp)
     while(qry->next())
     {
         postgresDBList->append(qry->value(0).toString());
-//        qDebug()<<qry->value(0).toString();
+        //        qDebug()<<qry->value(0).toString();
     }
     emit postgresExistingDBList(postgresDBList,imp);
 }

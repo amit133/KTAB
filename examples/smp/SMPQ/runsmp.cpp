@@ -94,67 +94,84 @@ void MainWindow::configureDB(bool bl)
 
 void MainWindow::postgresDBList(QStringList *dbList, bool imp)
 {
-    QDialog * dbListDialog = new QDialog(this);
-    QGridLayout * mainLayout = new QGridLayout;
-    dbListDialog->setLayout(mainLayout);
-    dbListDialog->setMaximumWidth(400);
-    dbListDialog->setMaximumHeight(300);
-    dbListDialog->setModal(true);
-
-    QLabel *actorHLabel= new QLabel("Existing Postgres DB List");
-    mainLayout->addWidget(actorHLabel,0,0,Qt::AlignHCenter);
-
-    QListView * dbListView = new QListView(this);
-    QStandardItemModel *dbListModel = new QStandardItemModel;
-
-    for (int i = 0 ; i < dbList->count(); ++i)
+    if(recentFileAccess.isEmpty()==true)
     {
-        QStandardItem * item = new QStandardItem(dbList->at(i));
-        item->setEditable(false);
-        dbListModel->setItem(i,0,item);
-    }
-    dbListView->setModel(dbListModel);
+        QDialog * dbListDialog = new QDialog(this);
+        QGridLayout * mainLayout = new QGridLayout;
+        dbListDialog->setLayout(mainLayout);
+        dbListDialog->setMaximumWidth(500);
+        dbListDialog->setMaximumHeight(300);
+        dbListDialog->setModal(true);
+        dbListDialog->setWindowTitle("KTAB SMP: Databases ");
+        dbListDialog->setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    connect(dbListView,SIGNAL(clicked(QModelIndex)),this,SLOT(dbListClicked(QModelIndex)));
+        QLabel *actorHLabel= new QLabel("Existing Postgres DB List");
+        mainLayout->addWidget(actorHLabel,0,0,Qt::AlignHCenter);
 
-    mainLayout->addWidget(actorHLabel,1,0,Qt::AlignHCenter);
-    mainLayout->addWidget(dbListView,2,0);
+        QListView * dbListView = new QListView(this);
+        QStandardItemModel *dbListModel = new QStandardItemModel;
 
-    dbDialogName = new QLineEdit(generateTimeStamp());
-    QPushButton * generateTS = new QPushButton;
-    generateTS->setIcon(QIcon("://images/regenerate.png"));
-    generateTS->setMaximumWidth(50);
-    connect(generateTS,SIGNAL(clicked(bool)),this,SLOT(getTimeStamp(bool)));
+        for (int i = 0 ; i < dbList->count(); ++i)
+        {
+            QStandardItem * item = new QStandardItem(dbList->at(i));
+            item->setEditable(false);
+            dbListModel->setItem(i,0,item);
+        }
+        dbListView->setModel(dbListModel);
 
-    QGridLayout * fileNameLayout = new QGridLayout;
-    fileNameLayout->addWidget(dbDialogName,0,0);
-    fileNameLayout->addWidget(generateTS,0,3);
+        connect(dbListView,SIGNAL(clicked(QModelIndex)),this,SLOT(dbListClicked(QModelIndex)));
 
-    mainLayout->addLayout(fileNameLayout,3,0);
+        mainLayout->addWidget(actorHLabel,1,0,Qt::AlignHCenter);
+        mainLayout->addWidget(dbListView,2,0);
 
-    QGridLayout * controlsLayout = new QGridLayout;
-    QPushButton * donePB = new QPushButton("Done");
-    QPushButton * cancelPB = new QPushButton("Cancel");
-    controlsLayout->addWidget(donePB,0,Qt::AlignRight);
-    controlsLayout->addWidget(cancelPB,0,Qt::AlignLeft);
+        dbDialogName = new QLineEdit(generateTimeStamp());
+        QPushButton * generateTS = new QPushButton;
+        generateTS->setIcon(QIcon("://images/regenerate.png"));
+        generateTS->setMaximumWidth(50);
+        connect(generateTS,SIGNAL(clicked(bool)),this,SLOT(getTimeStamp(bool)));
 
-    connect(donePB,SIGNAL(clicked(bool)),dbListDialog,SLOT(close()));
-    connect(donePB,SIGNAL(clicked(bool)),this,SLOT(dbDonePushButtonClicked(bool)));
-    connect(cancelPB,SIGNAL(clicked(bool)),dbListDialog,SLOT(close()));
+        QGridLayout * fileNameLayout = new QGridLayout;
+        fileNameLayout->addWidget(dbDialogName,0,0);
+        fileNameLayout->addWidget(generateTS,0,3);
 
-    mainLayout->addLayout(controlsLayout,4,0,Qt::AlignBottom);
+        mainLayout->addLayout(fileNameLayout,3,0);
 
-    //Different options for Import and Run
-    if(true==imp)//DB import
-    {
-        dbDialogName->setText(dbList->last());
-        generateTS->hide();
+        QGridLayout * controlsLayout = new QGridLayout;
+        QPushButton * donePB = new QPushButton("Done");
+        QPushButton * cancelPB = new QPushButton("Cancel");
+        controlsLayout->addWidget(donePB,0,Qt::AlignRight);
+        controlsLayout->addWidget(cancelPB,0,Qt::AlignLeft);
+
+        connect(donePB,SIGNAL(clicked(bool)),dbListDialog,SLOT(close()));
+        connect(donePB,SIGNAL(clicked(bool)),this,SLOT(dbDonePushButtonClicked(bool)));
+        connect(cancelPB,SIGNAL(clicked(bool)),dbListDialog,SLOT(close()));
+
+        mainLayout->addLayout(controlsLayout,4,0,Qt::AlignBottom);
+
+        //Different options for Import and Run
+        if(true==imp)//DB import
+        {
+            dbDialogName->setText(dbList->last());
+            generateTS->hide();
+        }
+        else
+        {
+            generateTS->show();
+        }
+        dbListDialog->show();
     }
     else
     {
-        generateTS->show();
+        if(dbList->contains(recentFileAccess))
+        {
+            postgresRecentAccess();
+        }
+        else
+        {
+            removeFromRecentFileHistory(recentFileAccess);
+            recentFileAccess.clear();
+        }
     }
-    dbListDialog->show();
 }
 
 void MainWindow::getTimeStamp(bool bl)
@@ -228,18 +245,19 @@ void MainWindow::runPushButtonClicked(bool bl)
             QString dbFilePath = fileDialog.getSaveFileName(this, tr("Save DB file as "),
                                                             QString(homeDirectory+QDir::separator()+name),tr("DB File (*.db)"),
                                                             0,QFileDialog::DontConfirmOverwrite);
+            if(!dbFilePath.isEmpty())
+            {
+                QString connectionStr;
+                connectionStr.append("Driver=QSQLITE;");//connectionType
+                //            connectionStr.append("Server=localhost;");//host address
+                connectionStr.append("Database=").append(dbFilePath.remove(".db").trimmed()).append(";");
 
-            QString connectionStr;
-            //"Driver=QPSQL;Server=localhost;Database=testeusmp;Uid=postgres;Pwd=test;"
-            connectionStr.append("Driver=QSQLITE;");//connectionType
-            //            connectionStr.append("Server=localhost;");//host address
-            connectionStr.append("Database=").append(dbFilePath.remove(".db").trimmed()).append(";");
+                QDir dir = QFileInfo(dbFilePath.append(".db")).absoluteDir();
+                homeDirectory = dir.absolutePath();
 
-            QDir dir = QFileInfo(dbFilePath.append(".db")).absoluteDir();
-            homeDirectory = dir.absolutePath();
-
-            connectionString = connectionStr;
-            runModel(connectionString,dbFilePath.remove(".db"));
+                connectionString = connectionStr;
+                runModel(connectionString,dbFilePath.remove(".db"));
+            }
         }
         else // Postgres
         {
@@ -266,7 +284,7 @@ void MainWindow::runModel(QString conStr, QString fileName)
     //                                            0,QFileDialog::DontConfirmOverwrite);
 
     connectDBString = conStr;
-//    qDebug()<<connectDBString << "db";
+    //    qDebug()<<connectDBString << "db";
 
     if(!connectDBString.isEmpty())
     {

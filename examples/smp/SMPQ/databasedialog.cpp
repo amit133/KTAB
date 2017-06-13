@@ -7,8 +7,10 @@ DatabaseDialog::DatabaseDialog(QWidget *parent) :
     ui(new Ui::DatabaseDialog)
 {
     ui->setupUi(this);
-    connect(ui->nextPushButton, SIGNAL(clicked(bool)),this,SLOT(nextClicked(bool)));
+    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    setWindowTitle("KTAB_SMP:Configure Database");
 
+    connect(ui->nextPushButton, SIGNAL(clicked(bool)),this,SLOT(nextClicked(bool)));
     ui->label_5->setVisible(false);
     ui->postgreDBLineEdit->setVisible(false);
 
@@ -41,7 +43,6 @@ void DatabaseDialog::nextClicked(bool)
 void DatabaseDialog::on_sqliteDonePushButton_clicked()
 {
     QString connectionSring;
-    //"Driver=QPSQL;Server=localhost;Database=testeusmp;Uid=postgres;Pwd=test;"
     connectionSring.append("Driver=QSQLITE;");//connectionType
     connectionSring.append("Server=localhost;");//host address
     connectionSring.append("Database=").append("None").append(";");
