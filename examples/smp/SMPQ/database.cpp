@@ -30,65 +30,187 @@ Database::Database()
     driverList = QSqlDatabase::drivers();
 
     if (!driverList.contains("QSQLITE", Qt::CaseInsensitive))
+    {
         emit Message("Database Error", "No QSQLITE support! Check all needed dll-files!");
+    }
+
+    if (!driverList.contains("QPSQL", Qt::CaseInsensitive))
+    {
+        emit Message("Database Error", "No QPSQL support! Check all needed dll-files!");
+    }
 
 }
 
 Database::~Database()
 {
+    releaseDB();
+}
+
+void Database::openDB(QString dbPath, QString dbType, QString connectionString, bool run)
+{
+    QSqlDatabase qdb = QSqlDatabase::addDatabase(dbType, "guiDb");
+    db = new QSqlDatabase(qdb);
+    if(dbType == "QSQLITE")
+    {
+        db->setDatabaseName(dbPath);
+        dbName=dbPath;
+
+        if(!db->open())
+        {
+            emit Message("Database Error", db->lastError().text());
+        }
+        qry = new QSqlQuery(*db);
+
+        if(db->isOpen())
+        {
+            // Scenarios list in db
+            getScenarioList(run);
+
+            getActorsDescriptionDB();
+
+            // to update numActors in db
+            getNumActors();
+
+            // number of states/turns in db
+            getNumStates();
+
+            //Affinty
+            getAffinityDB();
+
+            readVectorPositionTable(0,scenarioM,0);//turn
+        }
+    }
+    else if (dbType == "QPSQL")
+    {
+        db->setDatabaseName(dbPath);
+        dbName=dbPath;
+        //qry = new QSqlQuery(*db);
+
+        QStringList connectionParameters = connectionString.split(";");
+
+        QStringList connectionValues;
+        if(connectionParameters.length()>=5)
+        {
+            QString server = connectionParameters.at(4); //server
+            connectionValues = server.split("=");
+
+            server = connectionValues.at(1);
+            db->setHostName(server);
+
+            if(connectionString.contains("Port"))
+            {
+                QString port = connectionParameters.at(5);
+                connectionValues = port.split("=");
+
+                port  = connectionValues.at(1);
+                db->setPort(port.toInt());
+            }
+            else
+            {
+                db->setPort(5432);
+            }
+
+            QString uId = connectionParameters.at(2); // Uid
+            connectionValues = uId.split("=");
+            uId  = connectionValues.at(1);
+
+            QString pwd = connectionParameters.at(3); //Pwd
+            connectionValues = pwd.split("=");
+            pwd  = connectionValues.at(1);
+
+            if(!db->open(uId,pwd))
+            {
+                emit Message("Database Error", db->lastError().text());
+            }
+            else
+            {
+                qry = new QSqlQuery(*db);
+
+                // Scenarios list in db
+                getScenarioList(run);
+
+                getActorsDescriptionDB();
+
+                // to update numActors in db
+                getNumActors();
+
+                // number of states/turns in db
+                getNumStates();
+
+                //Affinty
+                getAffinityDB();
+
+                readVectorPositionTable(0,scenarioM,0);//turn
+            }
+        }
+        else
+        {
+            emit Message("Database", "Less parameters");
+        }
+    }
 
 }
 
-void Database::openDB(QString dbPath, bool run)
+void Database::checkPostgresDB(QString connectionString, bool imp)
 {
-    releaseDB();
-    db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName(dbPath);
-    dbName=dbPath;
-
-    if(!db.open())
+    if(connectionString.contains("QPSQL"))
     {
-        emit Message("Database Error", db.lastError().text());
-    }
-    else
-    {
-        // Scenarios list in db
-        getScenarioList(run);
+        dbPostgres = QSqlDatabase::addDatabase("QPSQL","checkDB");
 
-        getActorsDescriptionDB();
+        QStringList connectionParameters = connectionString.split(";");
+        QStringList connectionValues;
 
-        // to update numActors in db
-        getNumActors();
+        QString dbNm = connectionParameters.at(1); // DB
+        connectionValues = dbNm.split("=");
+        dbNm  = connectionValues.at(1);
+        dbPostgres.setDatabaseName(dbNm);
+        qDebug()<<dbNm << "database";
 
-        // number of states/turns in db
-        getNumStates();
+        if(connectionParameters.length()>=5)
+        {
+            QString server = connectionParameters.at(4); //server
+            connectionValues = server.split("=");
 
-        //Affinty
-        getAffinityDB();
+            server  = connectionValues.at(1);
+            dbPostgres.setHostName(server);
 
-        readVectorPositionTable(0,scenarioM,0);//turn
-    }
-}
+            if(connectionString.contains("Port"))
+            {
+                QString port = connectionParameters.at(5);
+                connectionValues = port.split("=");
 
-void Database::openDBEdit(QString dbPath)
-{
-    releaseDB();
-    db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName(dbPath);
-    dbName=dbPath;
+                port  = connectionValues.at(1);
+                dbPostgres.setPort(port.toInt());
+            }
+            else
+            {
+                dbPostgres.setPort(5432);
+            }
 
-    if(!db.open())
-    {
-        emit Message("Database Error", db.lastError().text());
-    }
-    else
-    {
-        readVectorPositionTableEdit(scenarioM);//turn
+            QString uId = connectionParameters.at(2); // Uid
+            connectionValues = uId.split("=");
+            uId  = connectionValues.at(1);
 
-        // Scenarios list in db
-        //  getScenarioList();
+            QString pwd = connectionParameters.at(3); //Pwd
+            connectionValues = pwd.split("=");
+            pwd  = connectionValues.at(1);
 
-        // readVectorPositionTableEdit(scenario_m);//turn
+            if(!dbPostgres.open(uId,pwd))
+            {
+                emit Message("Database Error", dbPostgres.lastError().text());
+            }
+            else
+            {
+                qry = new QSqlQuery(dbPostgres);
+                getDatabaseList(imp);
+
+                if(dbPostgres.isOpen())
+                {
+                    dbPostgres.close();
+                    QSqlDatabase::removeDatabase("checkDB");
+                }
+            }
+        }
     }
 }
 
@@ -114,14 +236,13 @@ void Database::getStateCount()
 void Database::getDimensionCount()
 {
     dimensionsList = new QStringList;
-    QSqlQuery qry;
-    QString query= QString("select Dim_k, Desc from DimensionDescription where ScenarioId = '%1'").arg(scenarioM);
-    qry.exec(query);
+    QString query= QString("select Dim_k, 'Desc' from DimensionDescription where ScenarioId = '%1'").arg(scenarioM);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        numDimension = qry.value(0).toInt();
-        dimensionsList->append(qry.value(1).toString());
+        numDimension = qry->value(0).toInt();
+        dimensionsList->append(qry->value(1).toString());
     }
 
     emit dimensionsCount(numDimension,dimensionsList);
@@ -132,15 +253,14 @@ void Database::getActorsDescriptionDB()
     actorNameList.clear();
     actorDescList.clear();
 
-    QSqlQuery qry;
-    QString query= QString("select Name,DESC from ActorDescription  where ScenarioId = '%1' ").arg(scenarioM);
+    QString query= QString("select Name,'DESC' from ActorDescription  where ScenarioId = '%1' ").arg(scenarioM);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        actorNameList.append(qry.value(0).toString());
-        actorDescList.append(qry.value(1).toString());
+        actorNameList.append(qry->value(0).toString());
+        actorDescList.append(qry->value(1).toString());
     }
 
     emit actorsNameDesc(actorNameList , actorDescList);
@@ -151,7 +271,6 @@ void Database::getInfluenceDB(int turn)
     actorInfluence.clear();
 
     //qDebug()<<scenario_m << "turn" << turn ;
-    QSqlQuery qry;
     QString query= QString(" select SpatialCapability.Cap from SpatialCapability,ActorDescription where "
                            " ActorDescription.Act_i = SpatialCapability.Act_i "
                            " and SpatialCapability.ScenarioId='%1' "
@@ -159,11 +278,11 @@ void Database::getInfluenceDB(int turn)
                            " and SpatialCapability.Turn_t='%2' "
                            ).arg(scenarioM).arg(turn);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        actorInfluence.append(qry.value(0).toString());
+        actorInfluence.append(qry->value(0).toString());
         //qDebug()<<actorInfluence << "Influence" <<turn;
     }
 
@@ -175,7 +294,6 @@ void Database::getPositionDB(int dim, int turn)
     actorPosition.clear();
     //qDebug()<<scenario_m;
 
-    QSqlQuery qry;
     QString query= QString(" select VectorPosition.Pos_Coord from VectorPosition,ActorDescription where"
                            " ActorDescription.Act_i = VectorPosition.Act_i"
                            " and VectorPosition.ScenarioId='%2' "
@@ -184,11 +302,11 @@ void Database::getPositionDB(int dim, int turn)
                            " and VectorPosition.dim_k='%1'")
             .arg(dim).arg(scenarioM).arg(turn);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        actorPosition.append(qry.value(0).toString());
+        actorPosition.append(qry->value(0).toString());
     }
     if(actorPosition.length()>0)
         emit actorsPostn(actorPosition,dim);
@@ -200,7 +318,6 @@ void Database::getSalienceDB(int dim, int turn)
     actorSalience.clear();
     //qDebug()<<scenario_m;
 
-    QSqlQuery qry;
     QString query= QString(" select SpatialSalience.Sal from SpatialSalience,ActorDescription where"
                            " ActorDescription.Act_i = SpatialSalience.Act_i"
                            " and SpatialSalience.ScenarioId='%2' "
@@ -209,11 +326,11 @@ void Database::getSalienceDB(int dim, int turn)
                            " and SpatialSalience.dim_k='%1'")
             .arg(dim).arg(scenarioM).arg(turn);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        actorSalience.append(qry.value(0).toString());
+        actorSalience.append(qry->value(0).toString());
     }
     emit actorsSalnce(actorSalience,dim);
 }
@@ -224,16 +341,15 @@ void Database::getAffinityDB()
     actorJ.clear();
     actorAffinity.clear();
 
-    QSqlQuery qry;
     QString query= QString(" select Act_i, Act_j, Affinity from Accommodation where ScenarioId='%1' ").arg(scenarioM);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        actorI.append(qry.value(0).toInt());
-        actorJ.append(qry.value(1).toInt());
-        actorAffinity.append(qry.value(2).toString());
+        actorI.append(qry->value(0).toInt());
+        actorJ.append(qry->value(1).toInt());
+        actorAffinity.append(qry->value(2).toString());
     }
     //      qDebug()<<actorAffinity.length() << actorI.length() << actorJ.length();
     emit actorsAffinity(actorAffinity,actorI,actorJ);
@@ -247,48 +363,45 @@ void Database::getActorsInRangeFromDB(double lowerRng, double higherRng, int dim
     actorSalienceList.clear();
     actorCapabilityList.clear();
 
-    QSqlQuery qry;
     QString query= QString(" select Act_i from VectorPosition where"
                            " Pos_Coord >= '%1'  AND Pos_Coord < '%2' AND "
                            " Dim_k='%3' AND ScenarioId='%4' "
                            "AND Turn_t='%5'")
             .arg(lwr).arg(upr).arg(dim).arg(scenarioM).arg(turn);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        actorIdsList.append(qry.value(0).toInt());
+        actorIdsList.append(qry->value(0).toInt());
     }
     // qDebug()<<actorIdsList << "ACat tat"  << query;
 
     for(int actInd =0; actInd < actorIdsList.length() ; actInd++)
     {
-        QSqlQuery qry;
         QString query= QString(" select Sal from SpatialSalience where"
                                " Act_i = '%1' AND ScenarioId='%2' AND Turn_t='%3'"
                                " AND Dim_k='%4'")
                 .arg(actorIdsList.at(actInd)).arg(scenarioM).arg(turn).arg(dim);
 
-        qry.exec(query);
+        qry->exec(query);
 
-        while(qry.next())
+        while(qry->next())
         {
-            actorSalienceList.append(qry.value(0).toDouble());
+            actorSalienceList.append(qry->value(0).toDouble());
         }
     }
     for(int actInd =0; actInd < actorIdsList.length() ; actInd++)
     {
-        QSqlQuery qry1;
         QString query1= QString(" select Cap from SpatialCapability where"
                                 " Act_i = '%1' AND ScenarioId='%2' AND Turn_t='%3'")
                 .arg(actorIdsList.at(actInd)).arg(scenarioM).arg(turn);
 
-        qry1.exec(query1);
+        qry->exec(query1);
 
-        while(qry1.next())
+        while(qry->next())
         {
-            actorCapabilityList.append(qry1.value(0).toDouble());
+            actorCapabilityList.append(qry->value(0).toDouble());
         }
     }
     emit listActorsSalienceCapability(actorIdsList,actorSalienceList,actorCapabilityList,lwr,upr);
@@ -297,22 +410,20 @@ void Database::getActorsInRangeFromDB(double lowerRng, double higherRng, int dim
 void Database::getDims()
 {
     dimList = new QStringList;
-    QSqlQuery qry;
-    QString query= QString("select Desc from DimensionDescription where ScenarioId = '%1'").arg(scenarioM);
-    qry.exec(query);
+    QString query= QString("select 'Desc' from DimensionDescription where ScenarioId = '%1'").arg(scenarioM);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        dimList->append(qry.value(0).toString());
+        dimList->append(qry->value(0).toString());
     }
     emit dimensList(dimList);
 }
 
-void Database::getUtilChlgAndSQvalues(QList<int> VHAxisValues)
+void Database::getUtilChlgAndSQvalues(QVector<int> VHAxisValues)
 {
     if(10==VHAxisValues.length())
     {
-        QSqlQuery qry;
         QString query = QString(" select H.diff as Hori_Coord, V.diff as Vert_Coord from "
                                 "(select Turn_t,Est_h,Aff_k,Init_i,Rcvr_j,Util_Chlg - Util_SQ as diff from UtilChlg "
                                 " where ScenarioId = '%1' and  Turn_t = '%2' and Init_i = '%3' and Rcvr_j = '%4' "
@@ -325,12 +436,12 @@ void Database::getUtilChlgAndSQvalues(QList<int> VHAxisValues)
                 .arg(scenarioM).arg(VHAxisValues[0]).arg(VHAxisValues[3]).arg(VHAxisValues[4])
                 .arg(VHAxisValues[2]).arg(VHAxisValues[1]).arg(VHAxisValues[7]).arg(VHAxisValues[6]);
 
-        qry.exec(query);
+        qry->exec(query);
 
-        while(qry.next())
+        while(qry->next())
         {
-            hCord=qry.value(0).toDouble();
-            vCord=qry.value(1).toDouble();
+            hCord=qry->value(0).toDouble();
+            vCord=qry->value(1).toDouble();
         }
         emit utilChlngAndSQ(VHAxisValues[0],hCord,vCord,VHAxisValues[4]);
     }
@@ -338,11 +449,15 @@ void Database::getUtilChlgAndSQvalues(QList<int> VHAxisValues)
 
 void Database::releaseDB()
 {
-    if(db.isOpen())
-    {
-        db.close();
-        QSqlDatabase::removeDatabase(dbName);
+    QString connectionName = db->connectionName();;
+    //    qDebug()<<connectionName;
+    qry->finish();
+    qry->clear();
+    delete qry;
+    if(nullptr != db) {
+        delete db;
     }
+    QSqlDatabase::removeDatabase(connectionName);
 }
 
 void Database::getActorMovedDataDB(QString scenario)
@@ -351,7 +466,7 @@ void Database::getActorMovedDataDB(QString scenario)
 
     int colIndex =0;
     int rowIndex =0;
-    QSqlQuery qry;
+
     QString query;
 
     query= QString("select M.Movd_Turn, M.Act_i as Movd_ActorID, M.Dim_k, M.PrevPos, M.CurrPos, M.Diff, "
@@ -366,20 +481,20 @@ void Database::getActorMovedDataDB(QString scenario)
                    "ActorDescription as MI on B.Init_Act_i = MI.Act_i and B.ScenarioID = MI.ScenarioID inner join "
                    "ActorDescription as MR on B.Recd_Act_j = MR.Act_i and B.ScenarioID = MR.ScenarioID  ").arg(scenario);
 
-    qry.exec(query);
-    while(qry.next())
+    qry->exec(query);
+    while(qry->next())
     {
-        actorMovedModel->setItem(rowIndex,colIndex,new QStandardItem(qry.value(0).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(1).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(2).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(3).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(4).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(5).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(6).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(7).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(8).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(9).toString().trimmed()));
-        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry.value(10).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,colIndex,new QStandardItem(qry->value(0).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(1).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(2).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(3).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(4).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(5).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(6).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(7).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(8).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(9).toString().trimmed()));
+        actorMovedModel->setItem(rowIndex,++colIndex,new QStandardItem(qry->value(10).toString().trimmed()));
 
         ++rowIndex;
         colIndex=0;
@@ -389,7 +504,6 @@ void Database::getActorMovedDataDB(QString scenario)
 
 void Database::getVectorPosition(int actor, int dim, int turn, QString scenario)
 {
-    QSqlQuery qry;
     QString query;
 
     int i =0;
@@ -398,23 +512,22 @@ void Database::getVectorPosition(int actor, int dim, int turn, QString scenario)
     query= QString("select * from VectorPosition where Act_i='%1' and Dim_k='%2' and Turn_t<='%3' and  ScenarioId = '%4' ")
             .arg(actor).arg(dim).arg(turn).arg(scenario);
 
-    qry.exec(query);
-    while(qry.next())
+    qry->exec(query);
+    while(qry->next())
     {
-        x[i]=qry.value(1).toDouble();
-        y[i]=qry.value(4).toDouble();// y scales from 0 to 100
+        x[i]=qry->value(1).toDouble();
+        y[i]=qry->value(4).toDouble();// y scales from 0 to 100
         ++i;
     }
 
-    QSqlQuery qry2;
     QString actorName;
 
     QString query2 = QString("select * from ActorDescription where Act_i='%1' and ScenarioId='%2'")
             .arg(actor).arg(scenario);
-    qry2.exec(query2);
-    while(qry2.next())
+    qry->exec(query2);
+    while(qry->next())
     {
-        actorName = qry2.value(2).toString();
+        actorName = qry->value(2).toString();
     }
 
     emit vectorPosition(x,y,actorName,turn);
@@ -433,19 +546,18 @@ void Database::readVectorPositionTable(int turn, QString scenario, int dim)
     getAffinityDB();
 
     sqlmodel = new QStandardItemModel(this);
-    QSqlQuery qry;
     QString query;
 
     query= QString("select * from VectorPosition where Turn_t='%1' and Dim_k='%2' and ScenarioId='%3'")
             .arg(turn).arg(dim).arg(scenario);
 
-    qry.exec(query);
+    qry->exec(query);
 
     int rowindex =0;
-    while(qry.next())
+    while(qry->next())
     {
-        QString value = qry.value(0).toString();
-        QString value1 = qry.value(1).toString();
+        QString value = qry->value(0).toString();
+        QString value1 = qry->value(1).toString();
 
         QStandardItem *item = new QStandardItem(value.trimmed());
         QStandardItem *item1 = new QStandardItem(value1.trimmed());
@@ -461,7 +573,9 @@ void Database::readVectorPositionTable(int turn, QString scenario, int dim)
     //To plot graph
 
     for(int actors=0; actors <= numActors; ++actors)
+    {
         getVectorPosition(actors,dim,turn,scenario);//actors, dimension, turn
+    }
 }
 
 void Database::readVectorPositionTableEdit(QString scenario)
@@ -475,17 +589,32 @@ void Database::readVectorPositionTableEdit(QString scenario)
     emit dbModelEdit(sqlmodelEdit);
 }
 
+void Database::getDatabaseList(bool imp)
+{
+    postgresDBList = new QStringList;
+
+    QString query= QString("select datname from pg_database" ) ;
+
+    qry->exec(query);
+
+    while(qry->next())
+    {
+        postgresDBList->append(qry->value(0).toString());
+        //        qDebug()<<qry->value(0).toString();
+    }
+    emit postgresExistingDBList(postgresDBList,imp);
+}
+
 void Database::getNumActors()
 {
-    QSqlQuery qry;
     QString query= QString("select Act_i from ActorDescription where ScenarioId='%1'" )
             .arg(scenarioM);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        numActors = qry.value(0).toInt();
+        numActors = qry->value(0).toInt();
     }
 
     emit actorCount(numActors);
@@ -493,15 +622,14 @@ void Database::getNumActors()
 
 void Database::getNumStates()
 {
-    QSqlQuery qry;
     QString query= QString("select DISTINCT Turn_t from VectorPosition where ScenarioId='%1'" )
             .arg(scenarioM);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        numStates = qry.value(0).toInt();
+        numStates = qry->value(0).toInt();
     }
 
     emit statesCount(numStates);
@@ -512,16 +640,15 @@ void Database::getScenarioList(bool run)
     scenarioList = new QStringList;
     scenarioIdList = new QStringList;
     scenarioDescList = new QStringList;
-    QSqlQuery qry;
-    QString query= QString("select Scenario,ScenarioId,DESC from ScenarioDesc ");
+    QString query= QString("select Scenario,ScenarioId,'Desc' from ScenarioDesc ");
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        scenarioList->append(qry.value(0).toString());
-        scenarioIdList->append(qry.value(1).toString());
-        scenarioDescList->append(qry.value(2).toString());
+        scenarioList->append(qry->value(0).toString());
+        scenarioIdList->append(qry->value(1).toString());
+        scenarioDescList->append(qry->value(2).toString());
     }
 
     if(scenarioList->length()>0)
@@ -530,17 +657,22 @@ void Database::getScenarioList(bool run)
         {
             scenarioM =  scenarioIdList->at(scenarioIdList->length()-1);
             emit scenarios(scenarioList,scenarioIdList,scenarioDescList,scenarioIdList->length()-1);
+            //model parameters for current scenario
+            getModelParameters();
         }
         else
         {
             scenarioM =  scenarioIdList->at(0);
             emit scenarios(scenarioList,scenarioIdList,scenarioDescList,0);
+            //model parameters for current scenario
+            getModelParameters();
         }
-        //model parameters for current scenario
-        getModelParameters();
+
     }
     else
+    {
         Message("Database","there is no Dataset/Scenario's");
+    }
 
 }
 
@@ -548,23 +680,22 @@ void Database::getModelParameters()
 {
     scenarioModelParam.clear();
 
-    QSqlQuery qry;
     QString query= QString("select * from ScenarioDesc where ScenarioId='%1' ").arg(scenarioM);
 
-    qry.exec(query);
+    qry->exec(query);
 
-    while(qry.next())
+    while(qry->next())
     {
-        seedDB = qry.value(3).toString();
-        scenarioModelParam.append(qry.value(4).toInt());
-        scenarioModelParam.append(qry.value(5).toInt());
-        scenarioModelParam.append(qry.value(6).toInt());
-        scenarioModelParam.append(qry.value(7).toInt());
-        scenarioModelParam.append(qry.value(8).toInt());
-        scenarioModelParam.append(qry.value(9).toInt());
-        scenarioModelParam.append(qry.value(10).toInt());
-        scenarioModelParam.append(qry.value(11).toInt());
-        scenarioModelParam.append(qry.value(12).toInt());
+        seedDB = qry->value(3).toString();
+        scenarioModelParam.append(qry->value(4).toInt());
+        scenarioModelParam.append(qry->value(5).toInt());
+        scenarioModelParam.append(qry->value(6).toInt());
+        scenarioModelParam.append(qry->value(7).toInt());
+        scenarioModelParam.append(qry->value(8).toInt());
+        scenarioModelParam.append(qry->value(9).toInt());
+        scenarioModelParam.append(qry->value(10).toInt());
+        scenarioModelParam.append(qry->value(11).toInt());
+        scenarioModelParam.append(qry->value(12).toInt());
     }
 
     if(scenarioModelParam.length()==9)

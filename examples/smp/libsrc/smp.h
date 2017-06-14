@@ -229,6 +229,12 @@ protected:
 
 private:
 
+  mutable std::mutex utilDataLock;
+  mutable std::multimap<string, KMatrix> tpvData;
+  mutable std::multimap<string, double>phijData;
+  mutable std::multimap<string, vector<double>> euData;
+  void recordProbEduChlg() const;
+
   // this sets the values in all the AUtil matrices
   virtual void setAllAUtil(ReportingLevel rl);
 
@@ -341,7 +347,6 @@ public:
   // output the two files needed to draw Sankey diagram for Database
   static void sankeyOutput(string outputFile, string dbName, std::string scenarioId) ;
 
-
   // number of spatial dimensions in this SMP
   void addDim(string dn);
   unsigned int numDim = 0;
@@ -387,10 +392,6 @@ protected:
   // note that the function to write to table #k must be kept
   // synchronized with the result of createTableSQL(k) !
   void sqlTest();
-
-  // compute several useful items implied by the risk attitudes, saliences, and the matrix of differences
-  //static void setUtilProb(const KMatrix& vR, const KMatrix& vS, const KMatrix& vD,
-  //  KBase::VotingRule vr, KBase::VPModel vpm);
 
   // voting rule for actors when forming coalitions over positions or bargains
   VotingRule vrCltn = VotingRule::Proportional;

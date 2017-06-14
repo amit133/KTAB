@@ -160,6 +160,17 @@ Model::~Model() {
     delete t;
     KTables.pop_back();
   }
+
+  if (nullptr != qtDB && qtDB->isValid()) {
+    // Note: It is necessary to free the resources held by query object
+    // Else the removeDatabase() method causes segmentation fault
+    query.finish();
+    query.clear();
+    QString connName = qtDB->connectionName();
+    qtDB->close();
+    delete qtDB;
+    QSqlDatabase::removeDatabase(connName);
+  }
 }
 
 

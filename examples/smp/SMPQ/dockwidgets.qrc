@@ -11,5 +11,7 @@
         <file>images/create.png</file>
         <file>images/colorpicker.png</file>
         <file>images/close.png</file>
+        <file>images/configdb.png</file>
+        <file>images/regenerate.png</file>
     </qresource>
 </RCC>

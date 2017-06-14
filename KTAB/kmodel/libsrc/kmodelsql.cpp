@@ -23,9 +23,16 @@
 
 #include <assert.h>
 #include <iostream>
+#include <sstream>
+#include <algorithm>
 
 #include "kmodel.h"
 
+#include <QVariant>
+#include <QSqlRecord>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QSqlDriver>
 
 namespace KBase
 {
@@ -35,6 +42,99 @@ using std::endl;
 using std::flush;
 using std::get;
 using std::tuple;
+
+QString Model::dbDriver;
+QString Model::server;
+int Model::port=5432; // Default port for postgresql
+QString Model::databaseName;
+QString Model::userName;
+QString Model::password;
+
+void Model::initDBDriver(QString connectionName) {
+  if (QSqlDatabase::contains(connectionName)) {
+    cout << "A database connection already exists with the name: " << connectionName.toStdString() << endl;
+    return;
+  }
+  QSqlDatabase qdb = QSqlDatabase::addDatabase(dbDriver, connectionName);
+  qtDB = new QSqlDatabase(qdb);
+  query = QSqlQuery(*qtDB);
+}
+
+bool Model::connectDB() {
+  return connect(server, port, databaseName, userName, password);
+}
+
+bool Model::connect(const QString& server,
+  const int port,
+  const QString& databaseName,
+  const QString& userName,
+  const QString& password)
+{
+  qtDB->setDatabaseName(databaseName);
+  qtDB->setHostName(server);
+  qtDB->setPort(port);
+
+  return qtDB->open(userName, password);
+}
+
+bool Model::isDB(const QString& databaseName) {
+  QString stmt = "select 1 from pg_database where datname = ";
+  stmt.append(databaseName);
+  query.exec(stmt);
+  if (query.size() == 1) {
+    // database exists
+    return true;
+  }
+  return false;
+}
+
+bool Model::createDB(const QString& dbName) {
+  QString createDBqry("CREATE DATABASE \"");
+  createDBqry.append(dbName);
+  createDBqry.append("\"");
+  cout << createDBqry.toStdString() << endl;
+
+  if (!query.exec(createDBqry)) {
+    cout << query.lastError().text().toStdString() << endl;
+    return false;
+  }
+
+  return true;
+}
+
+void Model::configSqlite() const {
+  // As we are not dealing with a long-term, mission-critical database,
+  // we can shut off some of the journaling stuff intended to protect
+  // the DB in case the system crashes in mid-operation.
+  // Eliminating these checks can significantly speed operations.
+  query.exec("PRAGMA journal_mode = MEMORY");
+  query.exec("PRAGMA locking_mode = EXCLUSIVE");
+  query.exec("PRAGMA synchronous = OFF");
+
+  // not a performance issue, but necessary for the data layout
+  query.exec("PRAGMA foreign_keys = ON");
+}
+
+void Model::execQuery(std::string& qry) {
+  if (!query.exec(QString::fromStdString(qry))) {
+    std::cerr << "Failed Query: " << qry << std::endl;
+    std::cerr << query.lastError().text().toStdString() << endl;
+    assert(false);
+  }
+}
+
+void Model::beginDBTransaction() {
+  qtDB->transaction();
+}
+
+void Model::commitDBTransaction() {
+  qtDB->commit();
+}
+
+QSqlQuery Model::getQuery()
+{
+  return query;
+}
 
 // JAH 20160728 added KTable class constructor
 KTable::KTable(unsigned int ID, const string &name, const string &SQL, unsigned int grpID)
@@ -46,8 +146,6 @@ KTable::KTable(unsigned int ID, const string &name, const string &SQL, unsigned 
 }
 
 KTable::~KTable() {};
-
-// --------------------------------------------
 
 void Model::demoSQLite()
 {
@@ -224,12 +322,12 @@ KTable * Model::createSQL(unsigned int n)
     // position-utility table
     // the estimated utility to each actor of each other's position
     sql = "create table if not exists PosUtil ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Est_h	INTEGER NOT NULL DEFAULT 0, "\
           "Act_i	INTEGER NOT NULL DEFAULT 0, "\
           "Pos_j	INTEGER NOT NULL DEFAULT 0, "\
-          "Util	REAL NOT NULL DEFAULT 0.0"\
+          "Util	FLOAT NOT NULL DEFAULT 0.0"\
           ");";
     name = "PosUtil";
     grpID = 4;
@@ -238,13 +336,13 @@ KTable * Model::createSQL(unsigned int n)
   case 1: // pos-vote table
     // estimated vote of each actor between each pair of positions
     sql = "create table if not exists PosVote ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Est_h	INTEGER NOT NULL DEFAULT 0, "\
           "Voter_k	INTEGER NOT NULL DEFAULT 0, "\
           "Pos_i	INTEGER NOT NULL DEFAULT 0, "\
           "Pos_j	INTEGER NOT NULL DEFAULT 0, "\
-          "Vote	REAL NOT NULL DEFAULT 0.0"\
+          "Vote	FLOAT NOT NULL DEFAULT 0.0"\
           ");";
     name = "PosVote";
     grpID = 1;
@@ -252,11 +350,11 @@ KTable * Model::createSQL(unsigned int n)
 
   case 2: // pos-prob table. Note that there may be duplicates, unless we limit it to unique positions
     sql = "create table if not exists PosProb ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Est_h	INTEGER NOT NULL DEFAULT 0, "\
           "Pos_i	INTEGER NOT NULL DEFAULT 0, "\
-          "Prob	REAL NOT NULL DEFAULT 0.0"\
+          "Prob	FLOAT NOT NULL DEFAULT 0.0"\
           ");";
     name = "PosProb";
     grpID = 1;
@@ -264,7 +362,7 @@ KTable * Model::createSQL(unsigned int n)
 
   case 3: // pos-equiv table. E(i)= lowest j s.t. Pos(i) ~ Pos(j). if j < i, it is not unique.
     sql = "create table if not exists PosEquiv ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Pos_i	INTEGER NOT NULL DEFAULT 0, "\
           "Eqv_j	INTEGER NOT NULL DEFAULT 0 "\
@@ -282,16 +380,16 @@ KTable * Model::createSQL(unsigned int n)
     // Utilities are evaluated so that UtilSQ, UtilVict, UtilChlg, UtilContest,
     // UtilTPVict, UtilTPLoss are comparable, i.e. the differences are meaningful
     sql = "create table if not exists UtilChlg ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'none', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'none', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Est_h	INTEGER NOT NULL DEFAULT 0, "\
           "Aff_k	INTEGER NOT NULL DEFAULT 0, "\
           "Init_i	INTEGER NOT NULL DEFAULT 0, "\
           "Rcvr_j	INTEGER NOT NULL DEFAULT 0, "\
-          "Util_SQ	   	REAL    NOT NULL DEFAULT 0, "\
-          "Util_Vict	REAL    NOT NULL DEFAULT 0, "\
-          "Util_Cntst	REAL    NOT NULL DEFAULT 0, "\
-          "Util_Chlg	REAL    NOT NULL DEFAULT 0  "\
+          "Util_SQ	  FLOAT    NOT NULL DEFAULT 0, "\
+          "Util_Vict	FLOAT    NOT NULL DEFAULT 0, "\
+          "Util_Cntst	FLOAT    NOT NULL DEFAULT 0, "\
+          "Util_Chlg	FLOAT    NOT NULL DEFAULT 0  "\
           ");";
     name = "UtilChlg";
     grpID = 2;
@@ -301,12 +399,12 @@ KTable * Model::createSQL(unsigned int n)
     // h's estimate that i will defeat j, including all third party contributions
     // P{^h}( i > j )
     sql = "create table if not exists ProbVict ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Est_h	INTEGER NOT NULL DEFAULT 0, "\
           "Init_i	INTEGER NOT NULL DEFAULT 0, "\
           "Rcvr_j	INTEGER NOT NULL DEFAULT 0, "\
-          "Prob	REAL NOT NULL DEFAULT 0"\
+          "Prob	FLOAT NOT NULL DEFAULT 0"\
           ");";
     name = "PosVict";
     grpID = 2;
@@ -318,15 +416,15 @@ KTable * Model::createSQL(unsigned int n)
     // U{^h}{_k} (ik > j)   utility to k of winning with i, over j
     // U{^h}{_k} (i > jk)   utility to k of losing to i, with j
     sql = "create table if not exists TP_Prob_Vict_Loss ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "Est_h	INTEGER NOT NULL DEFAULT 0, "\
           "Init_i	INTEGER NOT NULL DEFAULT 0, "\
           "ThrdP_k	INTEGER NOT NULL DEFAULT 0, "\
           "Rcvr_j	INTEGER NOT NULL DEFAULT 0, "\
-          "Prob	REAL    NOT NULL DEFAULT 0, "\
-          "Util_V	REAL    NOT NULL DEFAULT 0, "\
-          "Util_L	REAL    NOT NULL DEFAULT 0  "\
+          "Prob	FLOAT    NOT NULL DEFAULT 0, "\
+          "Util_V	FLOAT    NOT NULL DEFAULT 0, "\
+          "Util_L	FLOAT    NOT NULL DEFAULT 0  "\
           ");";
     name = "TP_Prob_Vict_Loss";
     grpID = 2;
@@ -336,10 +434,10 @@ KTable * Model::createSQL(unsigned int n)
   {
     char *sqlBuff = newChars(500);
     sprintf(sqlBuff, "create table if not exists ActorDescription ("  \
-                     "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+                     "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
                      "Act_i	INTEGER NOT NULL DEFAULT 0, "\
-                     "Name	TEXT(%u) NOT NULL DEFAULT 'NoName', "\
-                     "Desc	TEXT(%u) NOT NULL DEFAULT 'NoName' "\
+                     "Name	VARCHAR(%u) NOT NULL DEFAULT 'NoName', "\
+                     "\"Desc\"	VARCHAR(%u) NOT NULL DEFAULT 'NoName' "\
                      ");", maxActNameLen, maxActDescLen);
     sql = std::string(sqlBuff);
     delete sqlBuff;
@@ -351,16 +449,17 @@ KTable * Model::createSQL(unsigned int n)
 
   case 8: // Bargain table
     sql = "create table if not exists Bargn ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "BargnId INTEGER NOT NULL DEFAULT 0, "\
           "Init_Act_i INTEGER NOT NULL DEFAULT 0, "\
           "Recd_Act_j INTEGER NOT NULL DEFAULT 0, "\
-          "Value REAL NOT NULL DEFAULT 0.0, "\
-          "Init_Prob REAL NULL DEFAULT 0, "\
-          "Init_Seld	BOOLEAN NULL ,"\
-          "Recd_Prob REAL NULL DEFAULT 0, "\
-          "Recd_Seld	BOOLEAN NULL"\
+          "Value FLOAT NOT NULL DEFAULT 0.0, "\
+          "Init_Prob FLOAT NULL DEFAULT 0, "\
+          "Init_Seld	INTEGER NULL ,"\
+          "Recd_Prob FLOAT NULL DEFAULT 0, "\
+          "Recd_Seld	INTEGER NULL, "\
+          "CHECK (Init_Seld in (0,1) AND Recd_Seld in (0,1))"\
           ");";
     name = "Bargn";
     grpID = 4;
@@ -368,12 +467,12 @@ KTable * Model::createSQL(unsigned int n)
   case 9:  //
     // BargnCoords table
     sql = "create table if not exists BargnCoords ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "BargnId INTEGER NOT NULL DEFAULT 0, "\
           "Dim_k INTEGER NOT NULL DEFAULT 0, "\
-          "Init_Coord	REAL NULL DEFAULT 0.0,"\
-          "Recd_Coord	REAL NOT NULL DEFAULT 0.0"\
+          "Init_Coord	FLOAT NULL DEFAULT 0.0,"\
+          "Recd_Coord	FLOAT NOT NULL DEFAULT 0.0"\
           ");";
     name = "BargnCoords";
     grpID = 3;
@@ -381,11 +480,11 @@ KTable * Model::createSQL(unsigned int n)
 
   case 10:  // BargnUtil table creation
     sql = "create table if not exists BargnUtil ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "BargnId    INTEGER NOT NULL	DEFAULT 0, "\
           "Act_i 	INTEGER NOT NULL DEFAULT 0, "\
-          "Util	REAL NOT NULL DEFAULT 0.0"\
+          "Util	FLOAT NOT NULL DEFAULT 0.0"\
           ");";
     name = "BargnUtil";
     grpID = 3;
@@ -395,12 +494,12 @@ KTable * Model::createSQL(unsigned int n)
     // During bargain resolution, this table records the actual vote
     // of each actor between each pair of competing bargains
     sql = "create table if not exists BargnVote ("  \
-          "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+          "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
           "Turn_t	INTEGER NOT NULL DEFAULT 0, "\
           "BargnId_i  INTEGER NOT NULL DEFAULT 0, "\
           "BargnId_j INTEGER NOT NULL DEFAULT 0, "\
           "Act_k 	INTEGER NOT NULL DEFAULT 0, "\
-          "Vote	REAL NOT NULL DEFAULT 0.0"\
+          "Vote	FLOAT NOT NULL DEFAULT 0.0"\
           ");";
     name = "BargnVote";
     grpID = 3;
@@ -409,10 +508,10 @@ KTable * Model::createSQL(unsigned int n)
   case 12:  //ScenarioDesc creation
     // JAH 20160711 added the RNGSeed field
     sql = "create table if not exists ScenarioDesc ("  \
-          "Scenario TEXT(512) NOT NULL DEFAULT 'NoName', "\
-          "Desc TEXT(512) NOT NULL DEFAULT 'No Description', "\
-          "ScenarioId TEXT(32) NOT NULL UNIQUE DEFAULT 'None'," \
-          "RNGSeed TEXT(20) NOT NULL DEFAULT '0'," \
+          "Scenario VARCHAR(512) NOT NULL DEFAULT 'NoName', "\
+          "\"Desc\" VARCHAR(512) NOT NULL DEFAULT 'No Description', "\
+          "ScenarioId VARCHAR(32) NOT NULL UNIQUE DEFAULT 'None'," \
+          "RNGSeed VARCHAR(20) NOT NULL DEFAULT '0'," \
           "VictoryProbModel INTEGER NULL DEFAULT NULL," \
           "ProbCondorcetElection INTEGER NULL DEFAULT NULL," \
           "StateTransition INTEGER NULL DEFAULT NULL," \
@@ -459,10 +558,15 @@ void Model::sqlAUtil(unsigned int t)
           "INSERT INTO PosUtil (ScenarioId, Turn_t, Est_h, Act_i, Pos_j, Util) VALUES ('%s', ?1, ?2, ?3, ?4, ?5)",
           scenId.c_str());
 
+  string sql = "INSERT INTO PosUtil (ScenarioId, Turn_t, Est_h, Act_i, Pos_j, Util) VALUES ('"
+    + scenId + "', :turn_t, :est_h, :act_i, :pos_j, :util)";
   assert(nullptr != db);
   const char* insStr = sqlBuff;
   sqlite3_stmt *insStmt;
+
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
+  query.prepare(QString::fromStdString(sql));
+
   // Prepared statements cache the execution plan for a query after the query optimizer has
   // found the best plan, so there is no big gain with simple insertions.
   // What makes a huge difference is bundling a few hundred into one atomic "transaction".
@@ -470,6 +574,8 @@ void Model::sqlAUtil(unsigned int t)
   assert(nullptr != insStmt); // make sure it is ready
 
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
+
   for (unsigned int h = 0; h < numAct; h++)   // estimator is h
   {
     KMatrix uij = st->aUtil[h]; // utility to actor i of the position held by actor j
@@ -479,16 +585,24 @@ void Model::sqlAUtil(unsigned int t)
       {
         int rslt = 0;
         rslt = sqlite3_bind_int(insStmt, 1, t);
+        query.bindValue(":turn_t", t);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_int(insStmt, 2, h);
+        query.bindValue(":est_h", h);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_int(insStmt, 3, i);
+        query.bindValue(":act_i", i);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_int(insStmt, 4, j);
+        query.bindValue(":pos_j", j);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_double(insStmt, 5, uij(i, j));
+        query.bindValue(":util", uij(i, j));
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_step(insStmt);
+        if (!query.exec()) {
+          cout << query.lastError().text().toStdString() << endl;
+        }
         assert(SQLITE_DONE == rslt);
         sqlite3_clear_bindings(insStmt);
         assert(SQLITE_DONE == rslt);
@@ -498,6 +612,7 @@ void Model::sqlAUtil(unsigned int t)
     }
   }
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
   //printf("Stored SQL for turn %u of all estimators, actors, and positions \n", t);
 
@@ -508,6 +623,7 @@ void Model::sqlAUtil(unsigned int t)
 
   return;
 }
+
 // populates record for table PosEquiv for each step of
 // module run
 void Model::sqlPosEquiv(unsigned int t)
@@ -530,7 +646,14 @@ void Model::sqlPosEquiv(unsigned int t)
   const char* insStr = sqlBuff;
   sqlite3_stmt *insStmt;
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
+
+  string qsql = string("INSERT INTO PosEquiv (ScenarioId, Turn_t, Pos_i, Eqv_j) VALUES ('")
+    + scenId + "', :turn_t, :pos_i, :eqv_j)";
+  query.prepare(QString::fromStdString(qsql));
+
   assert(nullptr != insStmt); // make sure it is ready
+
+  qtDB->transaction();
 
   // Start inserting record
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
@@ -547,12 +670,18 @@ void Model::sqlPosEquiv(unsigned int t)
     }
     int rslt = 0;
     rslt = sqlite3_bind_int(insStmt, 1, t);
+    query.bindValue(":turn_t", t);
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_bind_int(insStmt, 2, i);
+    query.bindValue(":pos_i", i);
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_bind_int(insStmt, 3, je);
+    query.bindValue(":eqv_j", je);
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_step(insStmt);
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
     assert(SQLITE_DONE == rslt);
     sqlite3_clear_bindings(insStmt);
     assert(SQLITE_DONE == rslt);
@@ -561,6 +690,8 @@ void Model::sqlPosEquiv(unsigned int t)
   }
   // end databse transaction
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
+
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
   //printf("Stored SQL for turn %u of all estimators, actors, and positions \n", t);
   delete sqlBuff;
@@ -588,26 +719,39 @@ void Model::sqlBargainEntries(unsigned int t, int bargainId, int initiator, int 
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
   assert(nullptr != insStmt); // make sure it is ready
 
+  string sql = string("INSERT INTO Bargn (ScenarioId, Turn_t, BargnID, Init_Act_i, Recd_Act_j, Value) VALUES ('")
+    + scenId + "', :turn_t, :bargnid, :init_i, :recd_j, :value)";
+  query.prepare(QString::fromStdString(sql));
+
   // start for the transaction
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
 
   int rslt = 0;
   // Turn_t
   rslt = sqlite3_bind_int(insStmt, 1, t);
+  query.bindValue(":turn_t", t);
   assert(SQLITE_OK == rslt);
   //BargnID
   rslt = sqlite3_bind_int(insStmt, 2, bargainId);
+  query.bindValue(":bargnid", bargainId);
   assert(SQLITE_OK == rslt);
   //Init_Act_i
   rslt = sqlite3_bind_int(insStmt, 3, initiator);
+  query.bindValue(":init_i", initiator);
   assert(SQLITE_OK == rslt);
   //Recd_Act_j
   rslt = sqlite3_bind_int(insStmt, 4, receiver);
+  query.bindValue(":recd_j", receiver);
   assert(SQLITE_OK == rslt);
   //Value
   rslt = sqlite3_bind_double(insStmt, 5, val);
+  query.bindValue(":value", val);
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_step(insStmt);
+  if (!query.exec()) {
+    cout << query.lastError().text().toStdString() << endl;
+  }
   assert(SQLITE_DONE == rslt);
   sqlite3_clear_bindings(insStmt);
   assert(SQLITE_DONE == rslt);
@@ -615,6 +759,7 @@ void Model::sqlBargainEntries(unsigned int t, int bargainId, int initiator, int 
   assert(SQLITE_OK == rslt);
 
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
   //printf("Stored SQL for turn %u of all estimators, actors, and positions \n", t);
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
   delete sqlBuff;
@@ -647,8 +792,13 @@ void Model::sqlBargainCoords(unsigned int t, int bargnID, const KBase::VctrPstn 
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
   assert(nullptr != insStmt); // make sure it is ready
 
+  string sql = string("INSERT INTO BargnCoords (ScenarioId, Turn_t, BargnID, Dim_k, Init_Coord, Recd_Coord) VALUES ('")
+    + scenId + "', :turn_t, :bargnid, :dim_k, :init_coord, :recd_coord)";
+  query.prepare(QString::fromStdString(sql));
+
   // start for the transaction
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
 
   for (int k = 0; k < nDim; k++)
   {
@@ -656,22 +806,30 @@ void Model::sqlBargainCoords(unsigned int t, int bargnID, const KBase::VctrPstn 
     int rslt = 0;
     // Turn_t
     rslt = sqlite3_bind_int(insStmt, 1, t);
+    query.bindValue(":turn_t", t);
     assert(SQLITE_OK == rslt);
     //Baragainer
     rslt = sqlite3_bind_int(insStmt, 2, bargnID);
+    query.bindValue(":bargnid", bargnID);
     assert(SQLITE_OK == rslt);
     //Dim_K
     rslt = sqlite3_bind_int(insStmt, 3, k);
+    query.bindValue(":dim_k", k);
     assert(SQLITE_OK == rslt);
 
     //Init_Coord
     rslt = sqlite3_bind_double(insStmt, 4, initPos(k,0) * 100.0); // Log at the scale of [0,100]
+    query.bindValue(":init_coord", initPos(k, 0) * 100.0);
     assert(SQLITE_OK == rslt);
     //Recd_Coord
 
     rslt = sqlite3_bind_double(insStmt, 5, rcvrPos(k, 0) * 100.0); // Log at the scale of [0,100]
+    query.bindValue(":recd_coord", rcvrPos(k, 0) * 100.0);
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_step(insStmt);
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
     assert(SQLITE_DONE == rslt);
     sqlite3_clear_bindings(insStmt);
     assert(SQLITE_DONE == rslt);
@@ -681,6 +839,7 @@ void Model::sqlBargainCoords(unsigned int t, int bargnID, const KBase::VctrPstn 
   }
 
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
   delete sqlBuff;
   sqlBuff = nullptr;
@@ -707,14 +866,20 @@ void Model::sqlBargainUtil(unsigned int t, vector<uint64_t> bargnIds,  KBase::KM
           "INSERT INTO BargnUtil  (ScenarioId, Turn_t,BargnId, Act_i, Util) VALUES ('%s',?1, ?2, ?3, ?4)",
           scenId.c_str());
 
+  string sql = string("INSERT INTO BargnUtil  (ScenarioId, Turn_t,BargnId, Act_i, Util) VALUES ('")
+    + scenId + "', :turn_t, :bgnId, :act_i, :util)";
+
   assert(nullptr != db);
   const char* insStr = sqlBuff;
   sqlite3_stmt *insStmt;
+
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
+  query.prepare(QString::fromStdString(sql));
   assert(nullptr != insStmt); // make sure it is ready
 	// start for the transaction
 	sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
-	uint64_t Bargn_i = 0;
+  qtDB->transaction();
+  uint64_t Bargn_i = 0;
     for (unsigned int i = 0; i < Util_mat_row; i++)
     {
 		for (unsigned int j = 0; j < Util_mat_col; j++)
@@ -723,21 +888,28 @@ void Model::sqlBargainUtil(unsigned int t, vector<uint64_t> bargnIds,  KBase::KM
 			int rslt = 0;
 			// Turn_t
 			rslt = sqlite3_bind_int(insStmt, 1, t);
-			assert(SQLITE_OK == rslt);
+      query.bindValue(":turn_t", t);
+      assert(SQLITE_OK == rslt);
 			//Bargn_i
 			Bargn_i = bargnIds[j];
 			rslt = sqlite3_bind_int(insStmt, 2, Bargn_i);
-			assert(SQLITE_OK == rslt);
+      query.bindValue(":bgnId", (qulonglong)Bargn_i);
+      assert(SQLITE_OK == rslt);
 			//Act_i
 			rslt = sqlite3_bind_int(insStmt, 3, i);
+      query.bindValue(":act_i", i);
 			assert(SQLITE_OK == rslt);
 			//Util
 			rslt = sqlite3_bind_double(insStmt, 4, Util_mat(i, j));
-			assert(SQLITE_OK == rslt);
+      query.bindValue(":util", Util_mat(i, j));
+      assert(SQLITE_OK == rslt);
 			// finish  
 			assert(SQLITE_OK == rslt);
 			rslt = sqlite3_step(insStmt);
-			assert(SQLITE_DONE == rslt);
+      if (!query.exec()) {
+        cout << query.lastError().text().toStdString() << endl;
+      }
+      assert(SQLITE_DONE == rslt);
 			sqlite3_clear_bindings(insStmt);
 			assert(SQLITE_DONE == rslt);
 			rslt = sqlite3_reset(insStmt);
@@ -746,6 +918,7 @@ void Model::sqlBargainUtil(unsigned int t, vector<uint64_t> bargnIds,  KBase::KM
 	}
 
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
 
   delete sqlBuff;
@@ -779,33 +952,44 @@ void Model::LogInfoTables()
           scenName.c_str());
   // prepare the prepared statement statements
   sqlite3_stmt *insStmtA;
+
+  string sql = "INSERT INTO ActorDescription (ScenarioId,Act_i,Name,\"Desc\") VALUES ('"
+    + scenId + "', :act_i, :name, :desc)";
   sqlite3_prepare_v2(smpDB, sqlBuffA, strlen(sqlBuffA), &insStmtA, NULL);
+  query.prepare(QString::fromStdString(sql));
   assert(nullptr != insStmtA);
   sqlite3_stmt *insStmtS;
   sqlite3_prepare_v2(smpDB, sqlBuffS, strlen(sqlBuffS), &insStmtS, NULL);
   assert(nullptr != insStmtS);
 
   sqlite3_exec(smpDB, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
-
+  qtDB->transaction();
   // Actor Description Table
   // For each actor fill the required information
   for (unsigned int i = 0; i < actrs.size(); i++) {
     Actor * act = actrs.at(i);
     // bind the data
     rslt = sqlite3_bind_int(insStmtA, 1, i);
+    query.bindValue(":act_i", i);
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_bind_text(insStmtA, 2, act->name.c_str(), -1, SQLITE_TRANSIENT);
+    query.bindValue(":name", act->name.c_str());
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_bind_text(insStmtA, 3, act->desc.c_str(), -1, SQLITE_TRANSIENT);
+    query.bindValue(":desc", act->desc.c_str());
     assert(SQLITE_OK == rslt);
     // record
     rslt = sqlite3_step(insStmtA);
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
     assert(SQLITE_DONE == rslt);
     sqlite3_clear_bindings(insStmtA);
     assert(SQLITE_DONE == rslt);
     rslt = sqlite3_reset(insStmtA);
     assert(SQLITE_OK == rslt);
   }
+  qtDB->commit();
 
   // Scenario Description
   // Turn_t
@@ -819,6 +1003,15 @@ void Model::LogInfoTables()
   char *seedBuff = newChars(50);
   sprintf(seedBuff,"%20llu",rngSeed);
   const char* strSeed = seedBuff;
+  sql = string("INSERT INTO ScenarioDesc (Scenario,\"Desc\",ScenarioId,RNGSeed,"
+    "VictoryProbModel,ProbCondorcetElection,StateTransition) VALUES ('"
+    + scenName + "', '" + scenDesc + "', '" + scenId + "', '" + strSeed + "', "
+    + std::to_string(static_cast<int>(vpm)) + ", "
+    + std::to_string(static_cast<int>(pcem)) + ", "
+    + std::to_string(static_cast<int>(stm))
+    + " )");
+
+  execQuery(sql);
   rslt = sqlite3_bind_text(insStmtS, 3, strSeed, -1, SQLITE_TRANSIENT);
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_bind_int(insStmtS, 4, static_cast<int>(vpm));
@@ -868,47 +1061,59 @@ void Model::sqlBargainVote(unsigned int t, vector< tuple<uint64_t, uint64_t>> ba
 	const char* insStr = sqlBuff;
 	sqlite3_stmt *insStmt;
 	sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
-    assert(nullptr != insStmt); //make sure it is ready
+	assert(nullptr != insStmt); //make sure it is ready
 
-	// start for the transaction
+  string sql = string("INSERT INTO BargnVote (ScenarioId, Turn_t, BargnId_i, BargnId_j, Act_k, Vote) VALUES ('")
+    + scenId + "', :turn_t, :bargnid_i, :bargnid_j, :act_k, :vote)";
+  query.prepare(QString::fromStdString(sql));
+
+    // start for the transaction
 	sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
 
-    for (unsigned int i = 0; i <Util_mat_row ; i++)
-    {
+	for (unsigned int i = 0; i <Util_mat_row ; i++)
+	{
 		tuple<uint64_t, uint64_t> tijids = barginidspair_i_j[i];
 		uint64_t Bargn_i = std::get<0>(tijids);
 		uint64_t Bargn_j = std::get<1>(tijids);
 		
-//for (unsigned int j = 0; j <  Util_mat_col; j++)
-//		{
 			int rslt = 0;
 			// Turn_t
 			rslt = sqlite3_bind_int(insStmt, 1, t);
-			assert(SQLITE_OK == rslt);
+    query.bindValue(":turn_t", t);
+      assert(SQLITE_OK == rslt);
 			//Bargn_i
 			rslt = sqlite3_bind_int(insStmt, 2, Bargn_i);
-			assert(SQLITE_OK == rslt);
+    query.bindValue(":bargnid_i", (qulonglong)Bargn_i);
+      assert(SQLITE_OK == rslt);
 			//Bargn_j
 			rslt = sqlite3_bind_int(insStmt, 3, Bargn_j);
-			assert(SQLITE_OK == rslt);
+    query.bindValue(":bargnid_j", (qulonglong)Bargn_j);
+      assert(SQLITE_OK == rslt);
 			//Act_i
 			rslt = sqlite3_bind_int(insStmt, 4, act_k);
-			assert(SQLITE_OK == rslt);
+    query.bindValue(":act_k", act_k);
+      assert(SQLITE_OK == rslt);
 			//Util
 			rslt = sqlite3_bind_double(insStmt, 5, Vote_mat[i]);
-			assert(SQLITE_OK == rslt);
+    double voteMat = Vote_mat[i];
+    query.bindValue(":vote", voteMat);
+      assert(SQLITE_OK == rslt);
 			// finish  
 			assert(SQLITE_OK == rslt);
 			rslt = sqlite3_step(insStmt);
-			assert(SQLITE_DONE == rslt);
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
+      assert(SQLITE_DONE == rslt);
 			sqlite3_clear_bindings(insStmt);
 			assert(SQLITE_DONE == rslt);
 			rslt = sqlite3_reset(insStmt);
 			assert(SQLITE_OK == rslt);
-		//}
 	}
 	sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
-	sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
+  qtDB->commit();
+  sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
 
 	delete sqlBuff;
 	sqlBuff = nullptr;
@@ -942,8 +1147,13 @@ void Model::sqlPosProb(unsigned int t)
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
   assert(nullptr != insStmt); //make sure it is ready
 
+  string sql = string("INSERT INTO PosProb (ScenarioId, Turn_t, Est_h,Pos_i, Prob) VALUES ('")
+    + scenId + "', :turn_t, :est_h, :pos_i, :prob)";
+  query.prepare(QString::fromStdString(sql));
+
   // start for the transaction
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
   // collect the information from each estimator,actor
   for (unsigned int h = 0; h < numAct; h++)   // estimator is h
   {
@@ -959,14 +1169,21 @@ void Model::sqlPosProb(unsigned int t)
       // Extract the probabity for each actor
       double prob = st->posProb(i, unq, pdt);
       rslt = sqlite3_bind_int(insStmt, 1, t);
+      query.bindValue(":turn_t", t);
       assert(SQLITE_OK == rslt);
       rslt = sqlite3_bind_int(insStmt, 2, h);
+      query.bindValue(":est_h", h);
       assert(SQLITE_OK == rslt);
       rslt = sqlite3_bind_int(insStmt, 3, i);
+      query.bindValue(":pos_i", i);
       assert(SQLITE_OK == rslt);
       rslt = sqlite3_bind_double(insStmt, 4, prob);
+      query.bindValue(":prob", prob);
       assert(SQLITE_OK == rslt);
       rslt = sqlite3_step(insStmt);
+      if (!query.exec()) {
+        cout << query.lastError().text().toStdString() << endl;
+      }
       assert(SQLITE_DONE == rslt);
       sqlite3_clear_bindings(insStmt);
       assert(SQLITE_DONE == rslt);
@@ -975,6 +1192,7 @@ void Model::sqlPosProb(unsigned int t)
     }
   }
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
   //printf("Stored SQL for turn %u of all estimators, actors, and positions \n", t);
 
@@ -1013,8 +1231,13 @@ void Model::sqlPosVote(unsigned int t)
   sqlite3_prepare_v2(db, insStr, strlen(insStr), &insStmt, NULL);
   assert(nullptr != insStmt); //make sure it is ready
 
+  string sql = string("INSERT INTO PosVote (ScenarioId, Turn_t, Est_h, Voter_k, Pos_i, Pos_j, Vote) VALUES ('")
+    + scenId + "', :turn_t, :est_h, :voter_k, :pos_i, :pos_j, :vote)";
+  query.prepare(QString::fromStdString(sql));
+
   // start for the transaction
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
   auto vr = VotingRule::Proportional;
   // collect the information from each estimator
 
@@ -1032,22 +1255,31 @@ void Model::sqlPosVote(unsigned int t)
             auto vij = rd->vote(h, i, j, st);
             int rslt = 0;
             rslt = sqlite3_bind_int(insStmt, 1, t);
+            query.bindValue(":turn_t", t);
             assert(SQLITE_OK == rslt);
             rslt = sqlite3_bind_int(insStmt, 2, h);
+            query.bindValue(":est_h", h);
             assert(SQLITE_OK == rslt);
             //voter_k
             rslt = sqlite3_bind_int(insStmt, 3, k);
+            query.bindValue(":voter_k", k);
             assert(SQLITE_OK == rslt);
             // position i
             rslt = sqlite3_bind_int(insStmt, 4, i);
+            query.bindValue(":pos_i", i);
             assert(SQLITE_OK == rslt);
             //position j
             rslt = sqlite3_bind_int(insStmt, 5, j);
+            query.bindValue(":pos_j", j);
             assert(SQLITE_OK == rslt);
             // vote ?
             rslt = sqlite3_bind_double(insStmt, 6, vij);
+            query.bindValue(":vote", vij);
             assert(SQLITE_OK == rslt);
             rslt = sqlite3_step(insStmt);
+            if (!query.exec()) {
+              cout << query.lastError().text().toStdString() << endl;
+            }
             assert(SQLITE_DONE == rslt);
             sqlite3_clear_bindings(insStmt);
             assert(SQLITE_DONE == rslt);
@@ -1059,6 +1291,8 @@ void Model::sqlPosVote(unsigned int t)
     }
   }
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
+
   sqlite3_finalize(insStmt); // finalize statement to avoid resource leaks
   //printf("Stored SQL for turn %u of all estimators, actors, and positions \n", t);
 
@@ -1075,24 +1309,131 @@ void Model::createTableIndices() {
     const char * indexUtil = "CREATE INDEX IF NOT EXISTS idx_util ON PosUtil(ScenarioId, Turn_t, Est_h, Act_i, Pos_j)";
     int rc = sqlite3_exec(smpDB, indexUtil, nullptr, nullptr, &zErrMsg);
     assert(rc == SQLITE_OK);
+    string qry = string(indexUtil);
+    execQuery(qry);
 
     const char *indexActor = "CREATE INDEX IF NOT EXISTS idx_actor ON ActorDescription(ScenarioId)";
     rc = sqlite3_exec(smpDB, indexActor, nullptr, nullptr, &zErrMsg);
     assert(rc == SQLITE_OK);
+    qry = string(indexActor);
+    execQuery(qry);
 }
 
-void Model::dropTableIndices(){
+void Model::dropTableIndices() {
     char * zErrMsg = nullptr;
     const char * indexUtil = "DROP INDEX IF EXISTS idx_util";
     int rc = sqlite3_exec(smpDB, indexUtil, nullptr, nullptr, &zErrMsg);
+    string qry = string(indexUtil);
+    execQuery(qry);
 
     assert(rc == SQLITE_OK);
 
     const char * indexActor = "DROP INDEX IF EXISTS idx_actor";
     rc = sqlite3_exec(smpDB, indexActor, nullptr, nullptr, &zErrMsg);
     assert(rc == SQLITE_OK);
+    qry = string(indexActor);
+    execQuery(qry);
 }
 
+void Model::loginCredentials(string connString) {
+  enum class userParams {
+    Driver,
+    Server,
+    Port,
+    Database,
+    Uid,
+    Pwd
+  };
+
+  std::map<std::string, userParams> mapStringToUserParams =
+  {
+    { "Driver", userParams::Driver },
+    { "Server", userParams::Server },
+    { "Port", userParams::Port },
+    { "Database", userParams::Database },
+    { "Uid", userParams::Uid },
+    { "Pwd", userParams::Pwd },
+  };
+
+  string parsedParam;
+  std::stringstream  inputCredential(const_cast<char*>(connString.c_str()));
+  while (getline(inputCredential, parsedParam, ';'))
+  {
+    auto it = std::find(parsedParam.begin(), parsedParam.end(), '=');
+    string key, value;
+    key.assign(parsedParam.begin(), it);
+    value.assign(it + 1, parsedParam.end());
+    userParams userParam;
+    try {
+      userParam = mapStringToUserParams.at(key);
+    }
+    catch (const std::out_of_range& oor) {
+      std::cerr << "Error: Wrong connection string provided for DB!"
+        << endl << oor.what() << endl;
+      assert(false);
+    }
+
+    switch (mapStringToUserParams[key]) {
+    case userParams::Driver:
+      dbDriver = QString::fromStdString(value);
+      break;
+    case userParams::Server:
+      server = QString::fromStdString(value);
+      break;
+    case userParams::Port:
+      port = std::stoi(value);
+      break;
+    case userParams::Database:
+      databaseName = QString::fromStdString(value);
+      break;
+    case userParams::Uid:
+      userName = QString::fromStdString(value);
+      break;
+    case userParams::Pwd:
+      if (value.empty()) {
+        cout << "Enter the password to connect with database: ";
+        std::cin >> value;
+        cout << endl;
+      }
+      password = QString::fromStdString(value);
+      break;
+    default:
+      cout << "Error in input credentials format." << endl;
+    }
+  }
+
+  if (dbDriver.isEmpty() || databaseName.isEmpty()) {
+    cout << "Error! Database type or database name can not be left blank." << endl;
+    assert(false);
+  }
+
+  // We use either Postgresql or SQLITE
+  if (dbDriver.compare("QPSQL") && dbDriver.compare("QSQLITE")) {
+    cout << "Error! Wrong driver name. Supported Drivers: postgres(QPSQL), sqlite3(QSQLITE)" << endl;
+    assert(false);
+  }
+
+  // for a non-sqlite db
+  if (!dbDriver.compare("QPSQL")) {
+    if (server.isEmpty()) {
+      cout << "Error! Please provide address for postgres server" << endl;
+      assert(false);
+    }
+
+    // Prompt for password if the password has not been provided
+    if (password.isEmpty()) {
+      cout << "Enter the password to connect with database: ";
+      string value;
+      std::cin >> value;
+      cout << endl;
+      password = QString::fromStdString(value);
+    }
+  }
+
+  if (!dbDriver.compare("QSQLITE")) {
+    databaseName.append(".db");
+  }
+}
 
 } // end of namespace
 

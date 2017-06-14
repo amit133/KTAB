@@ -48,6 +48,13 @@ if (NOT SQLITE_FOUND)
   message(FATAL_ERROR "Could not find SQLite")
 endif (NOT SQLITE_FOUND)
 
+#--------------------------------------------------
+find_package(qtlibs)
+set(CMAKE_PREFIX_PATH ${PREFIX_PATH})
+message(STATUS "CMAKE_PREFIX_PATH" ${CMAKE_PREFIX_PATH})
+
+find_package(Qt5 REQUIRED COMPONENTS Core Sql)
+
 # --------------------------------------------------------
 
 set (COMSEL_XLIBS  )
@@ -115,6 +122,11 @@ set(COMSELLIB_SRCS
   )
 
 add_library(comsel STATIC ${COMSELLIB_SRCS})
+
+target_link_libraries (comsel
+  Qt5::Core
+  Qt5::Sql
+  )
 
 # -------------------------------------------------
 

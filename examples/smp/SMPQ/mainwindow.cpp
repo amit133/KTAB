@@ -53,9 +53,8 @@ MainWindow::MainWindow()
     //Database
     dbObj = new Database();
     //To open database by passing the path
-    connect(this,SIGNAL(dbFilePath(QString,bool)),dbObj, SLOT(openDB(QString,bool)));
-    //To open database by passing the path
-    connect(this,SIGNAL(dbEditFilePath(QString)),dbObj,SLOT(openDBEdit(QString)));
+    connect(this,SIGNAL(dbFilePath(QString,QString,QString,bool)),dbObj, SLOT(openDB(QString,QString,QString,bool)));
+
     //To get Database item Model to show on GUI
     connect(dbObj,SIGNAL(dbModel(QStandardItemModel*)),this,SLOT(setDBItemModel(QStandardItemModel*)));
     //To get Database item Model to show on Edit
@@ -87,23 +86,28 @@ MainWindow::MainWindow()
 
     //DB to Tables
     connect(this, SIGNAL(getActorsDesc()),dbObj,SLOT(getActorsDescriptionDB()));
-    connect(dbObj,SIGNAL(actorsNameDesc(QList <QString> ,QList <QString>)),this,SLOT(actorsNameDesc(QList  <QString> ,QList  <QString>)));
+    connect(dbObj,SIGNAL(actorsNameDesc(QVector <QString> ,QVector <QString>)),this,SLOT(actorsNameDesc(QVector  <QString> ,QVector  <QString>)));
     connect(this, SIGNAL(getInfluence(int)),dbObj,SLOT(getInfluenceDB(int)));
-    connect(dbObj,SIGNAL(actorsInflu(QList<QString>)),this,SLOT(actorsInfluence(QList  <QString>)));
+    connect(dbObj,SIGNAL(actorsInflu(QVector<QString>)),this,SLOT(actorsInfluence(QVector  <QString>)));
     connect(this, SIGNAL(getPosition(int,int)),dbObj,SLOT(getPositionDB(int,int)));
-    connect(dbObj,SIGNAL(actorsPostn(QList<QString>,int)),this,SLOT(actorsPosition(QList<QString>,int)));
+    connect(dbObj,SIGNAL(actorsPostn(QVector<QString>,int)),this,SLOT(actorsPosition(QVector<QString>,int)));
     connect(this, SIGNAL(getSalience(int,int)),dbObj,SLOT(getSalienceDB(int,int)));
-    connect(dbObj,SIGNAL(actorsSalnce(QList<QString>,int)),this,SLOT(actorsSalience(QList<QString>,int)));
-    connect(dbObj,SIGNAL(actorsAffinity(QList<QString>,QList<int>,QList<int>)),
-            this,SLOT(actAffinity(QList<QString>,QList<int>,QList<int>)));
-    connect(dbObj,SIGNAL(scenModelParameters(QList<int>,QString)),
-            this,SLOT(scenarioModelParameters(QList<int>,QString)));
+    connect(dbObj,SIGNAL(actorsSalnce(QVector<QString>,int)),this,SLOT(actorsSalience(QVector<QString>,int)));
+    connect(dbObj,SIGNAL(actorsAffinity(QVector<QString>,QVector<int>,QVector<int>)),
+            this,SLOT(actAffinity(QVector<QString>,QVector<int>,QVector<int>)));
+    connect(dbObj,SIGNAL(scenModelParameters(QVector<int>,QString)),
+            this,SLOT(scenarioModelParameters(QVector<int>,QString)));
     connect(this,SIGNAL(releaseDatabase()),dbObj,SLOT(releaseDB()));
+    //Postgres DB
+    connect(this,SIGNAL(getPostgresDBList(QString,bool)),dbObj, SLOT(checkPostgresDB(QString,bool)));
+    //dblist
+    connect(dbObj,SIGNAL(postgresExistingDBList(QStringList*,bool)),this,SLOT(postgresDBList(QStringList*,bool)));
+
 
     //BAR Charts
     connect(this,SIGNAL(getActorIdsInRange(double,double,int,int)),dbObj,SLOT(getActorsInRangeFromDB(double,double,int,int)));
-    connect(dbObj,SIGNAL(listActorsSalienceCapability(QList<int>,QList<double>,QList<double>,double,double)),this,
-            SLOT(barGraphActorsSalienceCapability(QList<int>,QList<double>,QList<double>,double,double)));
+    connect(dbObj,SIGNAL(listActorsSalienceCapability(QVector<int>,QVector<double>,QVector<double>,double,double)),this,
+            SLOT(barGraphActorsSalienceCapability(QVector<int>,QVector<double>,QVector<double>,double,double)));
 
     //LINE GRAPHS
     //To get dimensions count
@@ -114,8 +118,8 @@ MainWindow::MainWindow()
 
     //QUAD MAPS
     //to get Util_Chlg and Util_SQ values
-    connect(this,SIGNAL(getUtilChlgAndUtilSQfromDB(QList<int>)),
-            dbObj,SLOT(getUtilChlgAndSQvalues(QList<int>)));
+    connect(this,SIGNAL(getUtilChlgAndUtilSQfromDB(QVector<int>)),
+            dbObj,SLOT(getUtilChlgAndSQvalues(QVector<int>)));
 
     //received Chlg and sq values
     connect(dbObj,SIGNAL(utilChlngAndSQ(int , double , double  , int )),
@@ -128,9 +132,9 @@ MainWindow::MainWindow()
     connect(this,SIGNAL(readXMLFile()),xmlparser,SLOT(readXmlFile()));
     connect(xmlparser,SIGNAL(openXMLStatus(bool)),this,SLOT(openStatusXml(bool)));
     connect(xmlparser,SIGNAL(xmlParsedData(QStringList,QStringList,QStringList,QStandardItemModel*,
-                                           QList<QStringList>)),this,
+                                           QVector<QStringList>)),this,
             SLOT(xmlDataParsedFromFile(QStringList,QStringList,QStringList,QStandardItemModel*,
-                                       QList<QStringList>)));
+                                       QVector<QStringList>)));
     connect(this,SIGNAL(saveXMLDataToFile(QStringList,QStandardItemModel*,QStandardItemModel*,QString)),
             xmlparser,SLOT(saveToXmlFile(QStringList,QStandardItemModel*,QStandardItemModel*,QString)));
     connect(xmlparser,SIGNAL(newXmlFilePath(QString)),this,SLOT(savedXmlName(QString)));
@@ -139,10 +143,10 @@ MainWindow::MainWindow()
     connect(this,SIGNAL(homeDirChanged(QString)),xmlparser,SLOT(updateHomeDir(QString)));
 
     //colorpalette
-    connect(this,SIGNAL(exportColors(QString,QList<int>, QList<QString>)),
-            csvObj,SLOT(exportActorColors(QString,QList<int>,QList<QString>)));
+    connect(this,SIGNAL(exportColors(QString,QVector<int>, QVector<QString>)),
+            csvObj,SLOT(exportActorColors(QString,QVector<int>,QVector<QString>)));
     connect(this ,SIGNAL(importColors(QString,int)),csvObj,SLOT(importActorColors(QString,int)));
-    connect(csvObj,SIGNAL(importedColors(QList<QColor>)),this,SLOT(updateColors(QList<QColor>)));
+    connect(csvObj,SIGNAL(importedColors(QVector<QColor>)),this,SLOT(updateColors(QVector<QColor>)));
 
     //actormoveddata
     connect(this,SIGNAL(getActorMovedData(QString)),dbObj,SLOT(getActorMovedDataDB(QString)));
@@ -159,11 +163,16 @@ MainWindow::MainWindow()
     useHistory =true;
     currentScenarioId = "dummy";
     sankeyOutputHistory=true;
-}
+    menuconfig=false;
+    importedDBFile = false;
+    recentFileAccess.clear();
+    connectionString.append("Driver=QSQLITE;");//connectionType
+    connectionString.append("Server=localhost;");//host address
+    connectionString.append("Database=").append("None").append(";");}
 
 MainWindow::~MainWindow()
 {
-
+    emit releaseDatabase();
 }
 
 void MainWindow::csvGetFilePAth(bool bl, QString filepath )
@@ -204,56 +213,95 @@ void MainWindow::dbGetFilePAth(bool bl, QString smpDBPath, bool run)
     Q_UNUSED(bl)
     statusBar()->showMessage(tr("Looking for Database file ..."));
 
-    QString currentPath =dbPath;
-    if(smpDBPath.isEmpty())
+    QString conType;
+    QString currentPath = dbPath;
+    if(!connectionString.isEmpty())
     {
-        //Get  *.db file path
-        dbPath = QFileDialog::getOpenFileName(this,tr("Database File"), homeDirectory , tr("Database File (*.db)"));
+        if(connectionString.contains("QSQLITE"))
+        {
+            conType="QSQLITE";
+            if(smpDBPath.isEmpty())
+            {
+                //Get  *.db file path
+                dbPath = QFileDialog::getOpenFileName(this,tr("Database File"), homeDirectory , tr("Database File (*.db)"));
+                if(!dbPath.isEmpty())
+                {
+                    //    emit releaseDatabase();
+                    QDir dir =QFileInfo(dbPath).absoluteDir();
+                    homeDirectory = dir.absolutePath();
+                    setCurrentFile(dbPath);
+                }
+            }
+            else
+            {
+                dbPath = smpDBPath;
+                if(dbPath.contains(".db"))
+                {
+                    setCurrentFile(dbPath);
+                }
+                else if(!dbPath.isEmpty())
+                {
+                    setCurrentFile(dbPath.append(".db"));
+                    dbPath.remove(".db");
+                }
+            }
+        }
+        else if (connectionString.contains("QPSQL"))
+        {
+            conType="QPSQL";
+            dbPath = smpDBPath;
+            if(!dbPath.isEmpty())
+            {
+                setCurrentFile(dbPath);
+            }
+        }
+        //emit path to db class for processing
         if(!dbPath.isEmpty())
         {
-            QDir dir =QFileInfo(dbPath).absoluteDir();
-            homeDirectory = dir.absolutePath();
+            clearAllLabels();
+            lineGraphDock->setVisible(true);
+            barGraphDock->setVisible(true);
+
+            lineGraphDock->setEnabled(true);
+            barGraphDock->setEnabled(true);
+
+            disconnect(scenarioComboBox,SIGNAL(currentIndexChanged(int)),this,SLOT(scenarioComboBoxValue(int)));
+            disconnect(turnSlider,SIGNAL(valueChanged(int)),this,SLOT(sliderStateValueToQryDB(int)));
+            mScenarioDesc.clear();
+            mScenarioName.clear();
+            mScenarioIds.clear();
+            scenarioComboBox->clear();
+            scenarioNameLineEdit->clear();
+            connect(scenarioComboBox,SIGNAL(currentIndexChanged(int)),this,SLOT(scenarioComboBoxValue(int)));
+            connect(turnSlider,SIGNAL(valueChanged(int)),this,SLOT(sliderStateValueToQryDB(int)));
+
+            modeltoDB->clear();
+            if(run)
+            {
+                emit dbFilePath(dbPath,conType,connectionString,run);
+            }
+            else
+            {
+                emit dbFilePath(dbPath,conType,connectionString,false);
+            }
+
+            reconnectPlotWidgetSignals();
+            //To populate Line Graph Dimensions combo box
+            populateLineGraphDimensions(dimensionsLineEdit->text().toInt());
+            //To populate Bar Graph Dimensions combo box
+            populateBarGraphDimensions(dimensionsLineEdit->text().toInt());
+
         }
-    }
-    else
-        dbPath = smpDBPath;
-
-    //emit path to db class for processing
-    if(!dbPath.isEmpty())
-    {
-        setCurrentFile(dbPath);
-        clearAllLabels();
-        lineGraphDock->setVisible(true);
-        barGraphDock->setVisible(true);
-
-        lineGraphDock->setEnabled(true);
-        barGraphDock->setEnabled(true);
-
-        disconnect(scenarioComboBox,SIGNAL(currentIndexChanged(int)),this,SLOT(scenarioComboBoxValue(int)));
-        disconnect(turnSlider,SIGNAL(valueChanged(int)),this,SLOT(sliderStateValueToQryDB(int)));
-        mScenarioDesc.clear();
-        mScenarioName.clear();
-        mScenarioIds.clear();
-        scenarioComboBox->clear();
-        scenarioNameLineEdit->clear();
-        connect(scenarioComboBox,SIGNAL(currentIndexChanged(int)),this,SLOT(scenarioComboBoxValue(int)));
-        connect(turnSlider,SIGNAL(valueChanged(int)),this,SLOT(sliderStateValueToQryDB(int)));
-
-        modeltoDB->clear();
-        emit dbFilePath(dbPath,run);
-
-        reconnectPlotWidgetSignals();
-        //To populate Line Graph Dimensions combo box
-        populateLineGraphDimensions(dimensionsLineEdit->text().toInt());
-        //To populate Bar Graph Dimensions combo box
-        populateBarGraphDimensions(dimensionsLineEdit->text().toInt());
-
+        else
+        {
+            dbPath = currentPath;
+        }
+        statusBar()->showMessage(tr(" "));
     }
     else
     {
-        dbPath = currentPath;
+        displayMessage("Database Import", "Database connection is not configured");
     }
-    statusBar()->showMessage(tr(" "));
 }
 
 void MainWindow::dbEditGetFilePAth(bool bl)
@@ -626,7 +674,7 @@ void MainWindow::dockWindowChanged()
 
 void MainWindow::setCSVItemModel(QStandardItemModel *model, QStringList scenarioName)
 {
-    emit releaseDatabase();
+    //    emit releaseDatabase();
     lineGraphDock->setVisible(false);
     barGraphDock->setVisible(false);
     quadMapDock->setVisible(false);
@@ -696,7 +744,7 @@ void MainWindow::setCSVItemModel(QStandardItemModel *model, QStringList scenario
     setDefaultParameters();//Default Model Parameters
 
     modeltoCSV = model;
-    emit getDimensionCountfromDB();
+    //    emit getDimensionCountfromDB();
 
     //update: received model to widget
     csvTableView->setModel(modeltoCSV);
@@ -796,7 +844,9 @@ void MainWindow::setDBItemModelEdit(/*QSqlTableModel *modelEdit*/)
             stackWidget->removeWidget(xmlTabWidget);
         }
         for(int i =0 ; i <= smpDataTab->count(); ++i)
+        {
             smpDataTab->removeTab(0);
+        }
 
         csvTableWidget = new QTableWidget(central);
         affinityMatrix= new QTableWidget(central);
@@ -805,17 +855,12 @@ void MainWindow::setDBItemModelEdit(/*QSqlTableModel *modelEdit*/)
 
         affinityMatrix = new QTableWidget(central);
         affinityMatrix->setContextMenuPolicy(Qt::CustomContextMenu);
-        //        connect(affinityMatrix, SIGNAL(customContextMenuRequested(QPoint)), this,
-        //                SLOT(displayAffinityMenuTableWidget(QPoint)));
         affinityMatrix->setToolTip("The affinity matrix records, for all pairwise comparisons of actors, "
                                    "\nthe affinity which actor i has for the position of actor j");
         smpDataTab->addTab(csvTableWidget,"Actor Data ");
         smpDataTab->addTab(affinityMatrix," Affinity Matrix ");
         smpDataTab->setTabToolTip(1,"The affinity matrix records, for all pairwise comparisons of actors, "
                                     "\nthe affinity which actor i has for the position of actor j");
-
-        //        csv_tableWidget->horizontalHeader()->viewport()->installEventFilter(this);
-        //        csv_tableWidget->verticalHeader()->viewport()->installEventFilter(this);
 
         csvTableWidget->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(csvTableWidget, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(displayMenuTableWidget(QPoint)));
@@ -843,9 +888,6 @@ void MainWindow::setDBItemModelEdit(/*QSqlTableModel *modelEdit*/)
         scenarioNameLineEdit->clear();
 
         scenarioNameLineEdit->setText(currentScenario);
-        //        scenarioDescriptionLineEdit->clear();
-        //        scenarioDescriptionLineEdit->setText(mScenarioDesc.at(index));
-
         scenarioComboBox->setVisible(false);
         scenarioNameLineEdit->setVisible(true);
         scenarioDescriptionLineEdit->setEnabled(true);
@@ -861,9 +903,13 @@ void MainWindow::setDBItemModelEdit(/*QSqlTableModel *modelEdit*/)
         csvTableWidget->setShowGrid(true);
 
         for(int row = 0 ; row < actorsName.length();++row)
+        {
             csvTableWidget->insertRow(row);
+        }
         for(int col =0; col < 3+(dimensionsLineEdit->text().toInt())*2; ++col)
+        {
             csvTableWidget->insertColumn(col);
+        }
 
         //Headers Label
         csvTableWidget->setHorizontalHeaderItem(0,new QTableWidgetItem("Actor"));
@@ -934,20 +980,6 @@ void MainWindow::setDBItemModelEdit(/*QSqlTableModel *modelEdit*/)
         displayMessage("Database File",
                        "Import a Database first, then Click on \n - Edit Database to Save as CSV");
     }
-
-
-    //csv_tableWidget->hideColumn(0); //hiding the scenario column
-
-    //updating scenario combobox with scenario name
-    //    QModelIndex  id = modelEdit->index(0, 0, QModelIndex());
-    //    scenarioComboBox->addItem(modelEdit->data(id).toString());
-
-    //    for(int col =0; col < modelEdit->columnCount(); ++col)
-    //    {
-    //        csv_tableWidget->setHorizontalHeaderItem(
-    //                    col, new QTableWidgetItem(modelEdit->headerData(col, Qt::Horizontal, Qt::DisplayRole).toString()));
-    //    }
-
 }
 
 void MainWindow::setDBItemModel(QStandardItemModel *model)
@@ -1089,7 +1121,7 @@ void MainWindow::createNewSMPData(bool bl)
 {
     Q_UNUSED(bl)
 
-    emit releaseDatabase();
+    //    emit releaseDatabase();
     tableType="NewSMPData";
 
     clearAllGraphs();
@@ -1353,7 +1385,7 @@ void MainWindow::about()
 {
     QMessageBox::about(this, tr("About KTAB SMP"),
                        tr("KTAB SMP\n\nVersion 1.0\n\n"
-                           "KTAB is an open-source toolkit for assembling models that allow "
+                          "KTAB is an open-source toolkit for assembling models that allow "
                           "systematic and rigorous analysis of Collective Decision-Making "
                           "Processes (CDMPs).  KTAB is intended to be a platform that contains "
                           "a number of models that can simulate CDMPs.  The initial model that "
@@ -1373,13 +1405,13 @@ void MainWindow::chooseActorColors()
 {
     if(actorsName.length()>0 && tableType=="Database")
     {
-        QList<QColor> colors;
+        QVector<QColor> colors;
 
         for(int i=0; i < actorsName.length(); ++i)
             colors.append(colorsList.at(i));
 
         ColorPickerDialog *colorPicker = new ColorPickerDialog;
-        connect(colorPicker,SIGNAL(changedColors(QList<QColor>)),this,SLOT(updateColors(QList<QColor>)));
+        connect(colorPicker,SIGNAL(changedColors(QVector<QColor>)),this,SLOT(updateColors(QVector<QColor>)));
         colorPicker->intializeActors(actorsName,colors);
         colorPicker->show();
     }
@@ -1424,8 +1456,8 @@ void MainWindow::exportActorColors()
 
         setCurrentFile(colorPaletteCsvFileNameLocation);
 
-        QList<int> actorIdList;
-        QList<QString> actorColorsList;
+        QVector<int> actorIdList;
+        QVector<QString> actorColorsList;
         for(int act=0; act < actorsName.length(); ++act)
         {
             actorIdList.append(act);
@@ -1449,7 +1481,7 @@ void MainWindow::resetActorColors()
         displayMessage("Actors color picker","Please Import DB or RUN SMP Model");
 }
 
-void MainWindow::updateColors(QList<QColor> updatedColors)
+void MainWindow::updateColors(QVector<QColor> updatedColors)
 {
     for(int i=0; i < updatedColors.length(); ++i)
         colorsList[i]=updatedColors.at(i);
@@ -1522,6 +1554,18 @@ void MainWindow::createActions()
 
     fileToolBar->addSeparator();
     fileMenu->addSeparator();
+
+    seq.clear();
+    seq.append(Qt::Key_I | Qt::CTRL);
+    const QIcon dbConfig = QIcon::fromTheme("Configure Database ", QIcon("://images/configdb.png"));
+    QAction *configureDBAct = new QAction(dbConfig, tr("&Configure Database"), this);
+    configureDBAct->setShortcuts(seq);
+    configureDBAct->setToolTip("Configure a database");
+    configureDBAct->setStatusTip(tr("Configure a database"));
+    connect(configureDBAct,SIGNAL(triggered(bool)),this,SLOT(configUsingMenu(bool)));
+    connect(configureDBAct, SIGNAL(triggered(bool)),this,SLOT(configureDB(bool)));
+    fileMenu->addAction(configureDBAct);
+    fileToolBar->addAction(configureDBAct);
 
     seq.clear();
     seq.append(Qt::Key_I | Qt::CTRL);
@@ -2480,7 +2524,7 @@ void MainWindow::displayMenuTableView(QPoint pos)
     }
 }
 
-void MainWindow::actorsNameDesc(QList <QString> actorName,QList <QString> actorDescription)
+void MainWindow::actorsNameDesc(QVector <QString> actorName,QVector <QString> actorDescription)
 {
     actorsName.clear();
     actorsDescription.clear();
@@ -2542,29 +2586,29 @@ void MainWindow::actorsNameDesc(QList <QString> actorName,QList <QString> actorD
         populateInitiatorsAndReceiversRadioButtonsAndCheckBoxes();
 }
 
-void MainWindow::actorsInfluence(QList<QString> actorInfluence)
+void MainWindow::actorsInfluence(QVector<QString> actorInfluence)
 {
     actorsInfl=actorInfluence;
 }
 
-void MainWindow::actorsPosition(QList<QString> actorPosition, int dim)
+void MainWindow::actorsPosition(QVector<QString> actorPosition, int dim)
 {
     actorsPos[dim]=actorPosition;
 }
 
-void MainWindow::actorsSalience(QList<QString> actorSalience,int dim)
+void MainWindow::actorsSalience(QVector<QString> actorSalience,int dim)
 {
     actorsSal[dim]=actorSalience;
 }
 
-void MainWindow::actAffinity(QList<QString> actorAff, QList<int> actorI, QList<int> actorJ)
+void MainWindow::actAffinity(QVector<QString> actorAff, QVector<int> actorI, QVector<int> actorJ)
 {
     actorAffinity=actorAff;
     actI = actorI;
     actJ = actorJ;
 }
 
-void MainWindow::scenarioModelParameters(QList<int> modParaDB, QString seedDB)
+void MainWindow::scenarioModelParameters(QVector<int> modParaDB, QString seedDB)
 {
     victProbModelComboBox->setCurrentIndex(modParaDB.at(0));
     pCEModelComboBox->setCurrentIndex(modParaDB.at(1));
@@ -2647,6 +2691,96 @@ void MainWindow::changeHomeDirectory(bool bl)
     }
 }
 
+QString MainWindow::generateTimeStamp()
+{
+    QDateTime UTC = QDateTime::currentDateTime().toTimeSpec(Qt::UTC);
+    QString timeStamp("ktab-smp-");
+    timeStamp.append(QString::number(UTC.date().year())).append("-");
+    timeStamp.append(QString("%1").arg(UTC.date().month(), 2, 10, QLatin1Char('0'))).append("-");
+    timeStamp.append(QString("%1").arg(UTC.date().day(), 2, 10, QLatin1Char('0'))).append("__");
+    timeStamp.append(QString("%1").arg(UTC.time().hour(), 2, 10, QLatin1Char('0'))).append("-");
+    timeStamp.append(QString("%1").arg(UTC.time().minute(), 2, 10, QLatin1Char('0'))).append("-");
+    timeStamp.append(QString("%1").arg(UTC.time().second(), 2, 10, QLatin1Char('0')));
+    timeStamp.append("_GMT");
+
+    return timeStamp;
+}
+
+void MainWindow::postgresRecentAccess()
+{
+    QStringList connString = connectionString.split(";");
+    connectionString.clear();
+    for(int i = 0 ; i < connString.length() ; ++ i)
+    {
+        if(i==1)
+        {
+            connectionString.append("Database=").append(recentFileAccess).append(";");
+        }
+        else
+        {
+            QString str = connString.at(i);
+            if(!str.trimmed().isEmpty())
+            {
+                connectionString.append(str).append(";");
+            }
+        }
+    }
+
+    dbGetFilePAth(true,recentFileAccess,false);
+    recentFileAccess.clear();
+
+}
+
+void MainWindow::removeFromRecentFileHistory(QString fileName)
+{
+    QMessageBox msgBox;
+    msgBox.setText(QString(fileName+" not found !\n"
+                           + "Do you want to remove it from the recently accessed list ?"));
+    QPushButton *yesButton = msgBox.addButton(tr("Yes"), QMessageBox::ActionRole);
+    QPushButton *noButton = msgBox.addButton(QMessageBox::No);
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == yesButton)
+    {
+        QStringList files = recentFileSettings.value("recentFileList").toStringList();
+        recentFileSettings.remove("recentFileList");
+
+        int index = files.indexOf(fileName);
+        files.removeAt(index);
+
+        recentFileSettings.setValue("recentFileList",files);
+
+        updateRecentFileActions();
+    }
+    else if (msgBox.clickedButton() == noButton)
+    {
+        msgBox.close();
+    }
+}
+
+void MainWindow::connectionStrPath(QString str)
+{
+    connectionString = str;
+
+    if(menuconfig == false)
+    {
+        runPushButtonClicked(true);
+    }
+    if(!recentFileAccess.isEmpty() && connectionString.contains("QPSQL"))
+    {
+        getPostgresDBList(connectionString,false);
+    }
+    else
+    {
+        if(!recentFileAccess.contains(".db") && !recentFileAccess.isEmpty())
+        {
+            displayMessage("Database","Please configure Postgres Database with Valid Credentials");
+            recentFileAccess.clear();
+        }
+    }
+}
+
 void MainWindow::setCurrentFile(const QString &fileName)
 {
     setWindowFilePath(fileName);
@@ -2700,62 +2834,68 @@ QString MainWindow::strippedName(const QString &fullFileName)
 
 void MainWindow::loadRecentFile(const QString &fileName)
 {
-    QFileInfo checkFileValid(fileName);
-
-    if (checkFileValid.exists() && checkFileValid.isFile())
+    if(!fileName.isEmpty())
     {
-        QDir dir =QFileInfo(fileName).absoluteDir();
-        homeDirectory = dir.absolutePath();
+        QFileInfo checkFileValid(fileName);
 
-        if(fileName.endsWith(".csv") || fileName.endsWith(".CSV"))
+        if (checkFileValid.exists() && checkFileValid.isFile())
         {
-            checkCSVtype(fileName);
-        }
-        else if(fileName.endsWith(".xml") || fileName.endsWith(".XML"))
-        {
-            importXmlGetFilePath(true,fileName);
-        }
-        else if(fileName.endsWith(".db") || fileName.endsWith(".DB"))
-        {
-            dbGetFilePAth(true,fileName);
-        }
+            QDir dir =QFileInfo(fileName).absoluteDir();
+            homeDirectory = dir.absolutePath();
 
+            if(fileName.endsWith(".csv") || fileName.endsWith(".CSV"))
+            {
+                checkCSVtype(fileName);
+            }
+            else if(fileName.endsWith(".xml") || fileName.endsWith(".XML"))
+            {
+                importXmlGetFilePath(true,fileName);
+            }
+            else if(fileName.endsWith(".db") || fileName.endsWith(".DB"))
+            {
+                useHistory=false;
+                if(!connectionString.contains("QSQLITE"))
+                {
+                    connectionString.clear();
+                    connectionString.append("Driver=QSQLITE;");//connectionType
+                    connectionString.append("Database=").append("None").append(";");
+                }
+                dbGetFilePAth(true,fileName);
+            }
+            else
+            {
+                displayMessage("Recent File", "A File and a Database Exists with same name");
+            }
+        }
+        else if (!fileName.contains("."))
+        {
+            useHistory=false;
+            recentFileAccess = fileName;
+            if(!connectionString.contains("QPSQL"))
+            {
+                //POSTGRESQL
+                menuconfig = true;
+                configureDB(true);
+            }
+            else
+            {
+                emit getPostgresDBList(connectionString,false);
+            }
+        }
+        else
+        {
+            removeFromRecentFileHistory(fileName);
+        }
     }
     else
     {
-
-        QMessageBox msgBox;
-        msgBox.setText(QString(fileName+" not found !\n"
-                               + "Do you want to remove from the recently accessed list ?"));
-        QPushButton *yesButton = msgBox.addButton(tr("Yes"), QMessageBox::ActionRole);
-        QPushButton *noButton = msgBox.addButton(QMessageBox::No);
-
-        msgBox.exec();
-
-        if (msgBox.clickedButton() == yesButton)
-        {
-            QStringList files = recentFileSettings.value("recentFileList").toStringList();
-            recentFileSettings.remove("recentFileList");
-
-            int index = files.indexOf(fileName);
-            files.removeAt(index);
-
-            recentFileSettings.setValue("recentFileList",files);
-
-            updateRecentFileActions();
-        }
-        else if (msgBox.clickedButton() == noButton)
-        {
-            msgBox.close();
-        }
+        removeFromRecentFileHistory(fileName);
     }
-
 }
 
 void MainWindow::intializeHomeDirectory()
 {
     QString homeDir = recentFileSettings.value( "HomeDirectory" ).toString();
-    qDebug()<<homeDir;
     if(!QDir(homeDir).exists() || homeDir.isEmpty())
     {
         homeDirectory=QDir::homePath().append(QDir::separator()).append("KTAB_SMP");
@@ -2776,7 +2916,6 @@ void MainWindow::intializeHomeDirectory()
     recentFileSettings.setValue("HomeDirectory",homeDirectory);
 
     defaultDirectory= homeDirectory;
-    qDebug()<<homeDirectory;
 }
 
 void MainWindow::checkCSVtype(QString fileName)

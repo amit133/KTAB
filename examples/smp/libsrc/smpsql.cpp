@@ -27,7 +27,9 @@
 
 #include "smp.h"
 #include "sqlite3.h"
-
+#include <QSqlQuery>
+#include <QVariant>
+#include <QSqlError>
 
 namespace SMPLib {
 using std::cout;
@@ -70,12 +72,12 @@ KTable * SMPModel::createSQL(unsigned int n)  {
     switch (n-Model::NumTables) {
     case  0: // coordinates of each actor's position
 		sql = "create table if not exists VectorPosition ("  \
-			"ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+			"ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
 			"Turn_t		INTEGER NOT NULL DEFAULT 0, "\
 			"Act_i		INTEGER NOT NULL DEFAULT 0, "\
 			"Dim_k		INTEGER NOT NULL DEFAULT 0, "\
-			"Pos_Coord		REAL NOT NULL DEFAULT 0,"\
-			"Idl_Coord		REAL NOT NULL DEFAULT 0, " \
+			"Pos_Coord		FLOAT NOT NULL DEFAULT 0,"\
+			"Idl_Coord		FLOAT NOT NULL DEFAULT 0, " \
 			"Mover_BargnId	INTEGER NULL DEFAULT 0" \
       ");";
       name = "VectorPosition";
@@ -84,11 +86,11 @@ KTable * SMPModel::createSQL(unsigned int n)  {
 
     case 1: // salience to each actor of each dimension
       sql = "create table if not exists SpatialSalience ("  \
-            "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+            "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
             "Turn_t		INTEGER NOT NULL DEFAULT 0, "\
             "Act_i		INTEGER NOT NULL DEFAULT 0, "\
             "Dim_k		INTEGER NOT NULL DEFAULT 0, "\
-            "Sal		REAL NOT NULL DEFAULT 0.0"\
+            "Sal		FLOAT NOT NULL DEFAULT 0.0"\
             ");";
       name = "SpatialSalience";
       grpID = 0;
@@ -96,10 +98,10 @@ KTable * SMPModel::createSQL(unsigned int n)  {
 
     case 2: // scalar capability of each actor
       sql = "create table if not exists SpatialCapability ("  \
-            "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+            "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
             "Turn_t		INTEGER NOT NULL DEFAULT 0, "\
             "Act_i		INTEGER NOT NULL DEFAULT 0, "\
-            "Cap		REAL NOT NULL DEFAULT 0.0"\
+            "Cap		FLOAT NOT NULL DEFAULT 0.0"\
             ");";
       name = "SpatialCapability";
       grpID = 0;
@@ -110,9 +112,9 @@ KTable * SMPModel::createSQL(unsigned int n)  {
     {
       char *sqlBuff = newChars(500);
       sprintf(sqlBuff, "create table if not exists DimensionDescription ("  \
-                       "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+                       "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
                        "Dim_k	INTEGER NOT NULL DEFAULT 0, "\
-                       "Desc	TEXT(%u) NOT NULL DEFAULT 'NoDesc' "\
+                       "\"Desc\" VARCHAR(%u) NOT NULL DEFAULT 'NoDesc' "\
                        ");", maxDimDescLen);
       sql = std::string(sqlBuff);
       delete sqlBuff;
@@ -125,10 +127,10 @@ KTable * SMPModel::createSQL(unsigned int n)  {
     case 4: // affinities of actors, so the GUI can use it
     {
         sql = "create table if not exists Accommodation ("  \
-            "ScenarioId TEXT(32) NOT NULL DEFAULT 'None', "\
+            "ScenarioId VARCHAR(32) NOT NULL DEFAULT 'None', "\
             "Act_i      INTEGER NOT NULL DEFAULT 0, "\
             "Act_j      INTEGER NOT NULL DEFAULT 0, "\
-            "Affinity   REAL NOT NULL DEFAULT 0.0"\
+            "Affinity   FLOAT NOT NULL DEFAULT 0.0"\
             ");";
         name = "Accommodation";
         grpID = 0;
@@ -146,6 +148,65 @@ KTable * SMPModel::createSQL(unsigned int n)  {
 
 
 void SMPModel::sqlTest() {
+  initDBDriver(QString("smpDB"));
+
+  if (0 == dbDriver.compare("QPSQL")) {
+    if (!connectDB()) {
+      // connect with the default postgres db (the user should have admin privilege)
+      if(!connect(server, port, "postgres", userName, password)) {
+        cout << "Please check the login credentials, ip address or port number" << endl;
+        assert(false);
+      }
+
+      // Check if the database exists
+      if (!isDB(databaseName)) {
+        // if doesn't exist create one
+        if (createDB(databaseName)) {
+          // close the connection to the postgres db
+          qtDB->close();
+          // connect to the newly created database
+          if (connectDB()) {
+            cout << "Connected to newly created database." << endl;
+            query = QSqlQuery(*qtDB);
+          }
+          else {
+            cout << "Not connected to new db" << endl;
+            cout << qtDB->lastError().text().toStdString() << endl;
+            assert(false);
+          }
+        }
+        else {
+          assert(false);
+        }
+      }
+      else {
+        cout << "Database " << databaseName.toStdString()
+          << " exists but not able to connect to it." << endl;
+        assert(false);
+      }
+    }
+    else {
+      query = QSqlQuery(*qtDB);
+    }
+  }
+  else if (0 == dbDriver.compare("QSQLITE")) {
+    qtDB->setDatabaseName(databaseName);
+    qtDB->open();
+    query = QSqlQuery(*qtDB);
+    configSqlite();
+  }
+
+  // Create & execute SQL statements
+  // JAH 20160728 rewritten to complete the vector of KTables before creating the table
+  for (unsigned int i = 0; i < SMPModel::NumTables + Model::NumTables; i++) {
+    // get the table and add to the vector
+    auto thistable = SMPModel::createSQL(i);
+    assert(nullptr != thistable);
+    KTables.push_back(thistable);
+    // create the table
+    execQuery(thistable->tabSQL);
+  }
+
   // just a test to get linkages correct
 
   auto callBack = [](void *NotUsed, int argc, char **argv, char **azColName) {
@@ -245,25 +306,40 @@ void SMPModel::LogInfoTables()
   // form insert commands
   string sqlD = string("INSERT INTO DimensionDescription (ScenarioId,Dim_k,Desc) VALUES ('")
       + scenId + "', ?1, ?2)";
+  string sqlD1 = string("INSERT INTO DimensionDescription (ScenarioId,Dim_k,\"Desc\") VALUES ('")
+    + scenId + "', :dim_k, :desc)";
   char *sqlBuffD = const_cast<char *>(sqlD.c_str());
 
   string sqlC = string("INSERT INTO SpatialCapability (ScenarioId, Turn_t, Act_i, Cap) VALUES ('")
       + scenId + "', ?1, ?2, ?3)";
+  string sqlC1 = string("INSERT INTO SpatialCapability (ScenarioId, Turn_t, Act_i, Cap) VALUES ('")
+    + scenId + "', :turn_t, :act_i, :cap)";
   char *sqlBuffC = const_cast<char *>(sqlC.c_str());
 
   string sqlS = string("INSERT INTO SpatialSalience (ScenarioId, Turn_t, Act_i, Dim_k,Sal) VALUES ('")
       + scenId + "', ?1, ?2, ?3, ?4)";
+  string sqlS1 = string("INSERT INTO SpatialSalience (ScenarioId, Turn_t, Act_i, Dim_k,Sal) VALUES ('")
+    + scenId + "', :turn_t, :act_i, :dim_k, :sal)";
   char *sqlBuffS = const_cast<char *>(sqlS.c_str());
 
   string sqlSc = string("UPDATE ScenarioDesc SET VotingRule = ?1, BigRAdjust = ?2, "
       "BigRRange = ?3, ThirdPartyCommit = ?4, InterVecBrgn = ?5, BargnModel = ?6 "
       " WHERE ScenarioId = '")
       + scenId + "'";
+  string sqlSc1 = string("UPDATE ScenarioDesc SET VotingRule = :vr, BigRAdjust = :br, "
+    "BigRRange = :brr, ThirdPartyCommit = :tpc, InterVecBrgn = :ivb, BargnModel = :bm "
+    " WHERE ScenarioId = '")
+    + scenId + "'";
   char *sqlBuffScene = const_cast<char *>(sqlSc.c_str());
 
   string sqlAcc = string("INSERT INTO Accommodation (ScenarioId, Act_i, Act_j, Affinity) VALUES ('")
       + scenId
       + "', ?1, ?2, ?3)";
+  //TODO Change sqlAcc1 to sqlAcc and delete previous line for sqlAcc. Move all new sql strings
+  // before corresponding for loops
+  string sqlAcc1 = string("INSERT INTO Accommodation (ScenarioId, Act_i, Act_j, Affinity) VALUES ('")
+    + scenId
+    + "', :act_i, :act_j, :affinity)";
   char *sqlAccomod = const_cast<char *>(sqlAcc.c_str());
 
   // prepare the prepared statement statements
@@ -286,6 +362,7 @@ void SMPModel::LogInfoTables()
   assert(nullptr != insStmtAccomod);
 
   sqlite3_exec(smpDB, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->transaction();
 
   // Retrieve accommodation matrix
   auto st = dynamic_cast<SMPState *>(history.back());
@@ -293,18 +370,25 @@ void SMPModel::LogInfoTables()
   auto accM = st->getAccomodate();
 
   // Accomodation table to record affinities
+  query.prepare(QString::fromStdString(sqlAcc1));
   assert((accM.numR() == numAct) && (accM.numC() == numAct));
   for (unsigned int Act_i = 0; Act_i < numAct; ++Act_i) {
       for (unsigned int Act_j = 0; Act_j < numAct; ++Act_j) {
           //bind the data
           rslt = sqlite3_bind_int(insStmtAccomod, 1, Act_i);
+          query.bindValue(":act_i", Act_i);
           assert(SQLITE_OK == rslt);
           rslt = sqlite3_bind_int(insStmtAccomod, 2, Act_j);
+          query.bindValue(":act_j", Act_j);
           assert(SQLITE_OK == rslt);
           rslt = sqlite3_bind_double(insStmtAccomod, 3, accM(Act_i, Act_j));
+          query.bindValue(":affinity", accM(Act_i, Act_j));
           assert(SQLITE_OK == rslt);
           // record
           rslt = sqlite3_step(insStmtAccomod);
+          if (!query.exec()) {
+            cout << query.lastError().text().toStdString() << endl;
+          }
           assert(SQLITE_DONE == rslt);
           sqlite3_clear_bindings(insStmtAccomod);
           assert(SQLITE_DONE == rslt);
@@ -314,15 +398,21 @@ void SMPModel::LogInfoTables()
   }
 
   // Dimension Description Table
+  query.prepare(QString::fromStdString(sqlD1));
   for (unsigned int k = 0; k < dimName.size(); k++)
   {
     // bind the data
     rslt = sqlite3_bind_int(insStmtD, 1, k);
+    query.bindValue(":dim_k", k);
     assert(SQLITE_OK == rslt);
     rslt = sqlite3_bind_text(insStmtD, 2, dimName[k].c_str(), -1, SQLITE_TRANSIENT);
+    query.bindValue(":desc", dimName[k].c_str());
     assert(SQLITE_OK == rslt);
     // record
     rslt = sqlite3_step(insStmtD);
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
     assert(SQLITE_DONE == rslt);
     sqlite3_clear_bindings(insStmtD);
     assert(SQLITE_DONE == rslt);
@@ -331,6 +421,7 @@ void SMPModel::LogInfoTables()
   }
 
   // Spatial Capability
+  query.prepare(QString::fromStdString(sqlC1));
   // for each turn extract the information
   for (unsigned int t = 0; t < history.size(); t++) {
     auto st = history[t];
@@ -340,13 +431,19 @@ void SMPModel::LogInfoTables()
     for (unsigned int i = 0; i < numAct; i++) {
       // bind data
       rslt = sqlite3_bind_int(insStmtC, 1, t);
+      query.bindValue(":turn_t", t);
       assert(SQLITE_OK == rslt);
       rslt = sqlite3_bind_int(insStmtC, 2, i);
+      query.bindValue(":act_i", i);
       assert(SQLITE_OK == rslt);
       rslt = sqlite3_bind_double(insStmtC, 3, caps(0, i));
+      query.bindValue(":cap", caps(0, i));
       assert(SQLITE_OK == rslt);
       // record
       rslt = sqlite3_step(insStmtC);
+      if (!query.exec()) {
+        cout << query.lastError().text().toStdString() << endl;
+      }
       assert(SQLITE_DONE == rslt);
       sqlite3_clear_bindings(insStmtC);
       assert(SQLITE_DONE == rslt);
@@ -356,6 +453,7 @@ void SMPModel::LogInfoTables()
   }
 
   // Spatial Salience
+  query.prepare(QString::fromStdString(sqlS1));
   // for each turn extract the information
   for (unsigned int t = 0; t < history.size(); t++) {
     // Get the individual turn
@@ -371,15 +469,22 @@ void SMPModel::LogInfoTables()
         //                double sal = ai->vSal(k, 0);
         //bind the data
         rslt = sqlite3_bind_int(insStmtS, 1, t);
+        query.bindValue(":turn_t", t);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_int(insStmtS, 2, i);
+        query.bindValue(":act_i", i);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_int(insStmtS, 3, k);
+        query.bindValue(":dim_k", k);
         assert(SQLITE_OK == rslt);
         rslt = sqlite3_bind_double(insStmtS, 4, ai->vSal(k, 0)); // was sal
+        query.bindValue(":sal", ai->vSal(k, 0));
         assert(SQLITE_OK == rslt);
         // record
         rslt = sqlite3_step(insStmtS);
+        if (!query.exec()) {
+          cout << query.lastError().text().toStdString() << endl;
+        }
         assert(SQLITE_DONE == rslt);
         sqlite3_clear_bindings(insStmtS);
         assert(SQLITE_DONE == rslt);
@@ -389,21 +494,31 @@ void SMPModel::LogInfoTables()
     }
   }
 
+  query.prepare(QString::fromStdString(sqlSc1));
   //ScenarioDesc table
   rslt = sqlite3_bind_int(insStmtScene, 1, static_cast<int>(vrCltn));
+  query.bindValue(":vr", static_cast<int>(vrCltn));
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_bind_int(insStmtScene, 2, static_cast<int>(bigRAdj));
+  query.bindValue(":br", static_cast<int>(bigRAdj));
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_bind_int(insStmtScene, 3, static_cast<int>(bigRRng));
+  query.bindValue(":brr", static_cast<int>(bigRRng));
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_bind_int(insStmtScene, 4, static_cast<int>(tpCommit));
+  query.bindValue(":tpc", static_cast<int>(tpCommit));
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_bind_int(insStmtScene, 5, static_cast<int>(ivBrgn));
+  query.bindValue(":ivb", static_cast<int>(ivBrgn));
   assert(SQLITE_OK == rslt);
   rslt = sqlite3_bind_int(insStmtScene, 6, static_cast<int>(brgnMod));
+  query.bindValue(":bm", static_cast<int>(brgnMod));
   assert(SQLITE_OK == rslt);
 
   rslt = sqlite3_step(insStmtScene);
+  if (!query.exec()) {
+    cout << query.lastError().text().toStdString() << endl;
+  }
   assert(SQLITE_DONE == rslt);
   sqlite3_clear_bindings(insStmtScene);
   assert(SQLITE_DONE == rslt);
@@ -412,6 +527,7 @@ void SMPModel::LogInfoTables()
 
   // finish
   sqlite3_exec(smpDB, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  qtDB->commit();
   // finalize statement to avoid resource leaks
   sqlite3_finalize(insStmtD);
   sqlite3_finalize(insStmtC);
@@ -479,6 +595,52 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
 
   const unsigned int t = myTurn();
 
+  string sql = string("UPDATE Bargn SET Init_Prob = :init_prob, Init_Seld = :init_seld, "
+    "Recd_Prob = :recd_prob, Recd_Seld = :recd_seld "
+    "WHERE ('" + model->getScenarioID() + "' = ScenarioId) "
+    "and (:turn_t = Turn_t) and (:bgnId = BargnId) "
+    "and (:init_act_i = Init_Act_i) and (:recd_act_j = Recd_Act_j)");
+
+  QSqlQuery query = model->getQuery();
+
+  query.prepare(QString::fromStdString(sql));
+
+  auto updateBargn = [&query, t](int bargnID,
+    int initActor, double initProb, int isInitSelected,
+    int recvActor, double recvProb, int isRecvSelected) {
+
+    query.bindValue(":init_prob", initProb);
+
+    query.bindValue(":init_seld", isInitSelected);
+
+    // For SQ cases, there would be no receiver
+    if (initActor != recvActor) {
+      query.bindValue(":recd_prob", recvProb);
+
+      query.bindValue(":recd_seld", isRecvSelected);
+    }
+    else {
+      // Pass NULL values for SQ cases
+      query.bindValue(":recd_prob", QVariant::Double);
+
+      query.bindValue(":recd_seld", QVariant::Int);
+    }
+
+    query.bindValue(":turn_t", t);
+
+    query.bindValue(":bgnId", bargnID);
+
+    query.bindValue(":init_act_i", initActor);
+
+    query.bindValue(":recd_act_j", recvActor);
+
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
+
+    return;
+  };
+
   sqlite3 *db = model->smpDB;
   auto sqlBuff = newChars(300);
 
@@ -487,7 +649,7 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
           WHERE (\"%s\" = ScenarioId) and (?5 = Turn_t) and (?6 = BargnId) and (?7 = Init_Act_i) and (?8 = Recd_Act_j)",
                   model->getScenarioID().c_str());
 
-      const char* updateStr = sqlBuff;
+  const char* updateStr = sqlBuff;
   sqlite3_stmt *updateStmt = nullptr;
 
   // prepare the sql statement to update the db
@@ -500,6 +662,7 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
 
   // start for the transaction
   sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, &zErrMsg);
+  model->beginDBTransaction();
 
   // Update the bargain table for the bargain values for init actor and recd actor
   // along with the info whether a bargain got selected or not in the respective actor's queue
@@ -520,13 +683,13 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
         rcvrActr = initActr;
         initProb = (actorBargains[initActr])(initBgnNdx, 0);
         initSelected = initBgnNdx == actorMaxBrgNdx[initActr] ? 1 : 0;
-        /*cout << __LINE__ << " " << "SQ" << " " << bg->getID() \
-          << " " << initActr << ":" << rcvrActr << " " \
-          << initProb << " " << initSelected << endl;*/
 
         bindExecuteBargnTableUpdate(updateStmt, t, bg->getID(),
                                     initActr, initProb, initSelected,
                                     rcvrActr, -1.0, 0);
+        updateBargn(bg->getID(),
+          initActr, initProb, initSelected,
+          rcvrActr, -1.0, 0);
 
         if (0 == --countDown) {
           break;
@@ -538,7 +701,6 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
           initProb = (actorBargains[initActr])(initBgnNdx, 0);
           initSelected = initBgnNdx == actorMaxBrgNdx[initActr] ? 1 : 0;
           rcvrActr = model->actrNdx(bg->actRcvr);
-          //bgID = bg->getID();
 
           // Get the bargains of receiver actor
           auto brgnRcvr = brgns[rcvrActr];
@@ -553,19 +715,13 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
               // Check if it is the selected bargain for receiver actor
               rcvrSelected = actorMaxBrgNdx[rcvrActr] == rcvrBgNdx ? 1 : 0;
 
-              /*std::cout.precision(4);
-                cout << std::fixed;
-                cout << "Line " << __LINE__ << " " << bgID << " " \
-                << initActr << ":" << rcvrActr \
-                << " init_prob: " << initProb \
-                << " init_selected: " << initSelected \
-                << " rcvr_prob: " << rcvrProb \
-                << " rcvr_selected: " << rcvrSelected << endl << endl;*/
-
               --countDown;
               bindExecuteBargnTableUpdate(updateStmt, t, bg->getID(),
                                           initActr, initProb, initSelected,
                                           rcvrActr, rcvrProb, rcvrSelected);
+              updateBargn(bg->getID(),
+                initActr, initProb, initSelected,
+                rcvrActr, rcvrProb, rcvrSelected);
               break;
             }
             ++rcvrBgNdx;
@@ -582,6 +738,8 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
   }
 
   sqlite3_exec(db, "END TRANSACTION", NULL, NULL, &zErrMsg);
+  model->commitDBTransaction();
+
   sqlite3_finalize(updateStmt); // finalize statement to avoid resource leaks
 
   delete sqlBuff;
@@ -590,7 +748,138 @@ void SMPState::updateBargnTable(const vector<vector<BargainSMP*>> & brgns,
   return;
 }
 
+void SMPState::recordProbEduChlg() const {
+  size_t basePos = -1;
+  size_t digCount = 0;
+  size_t nextCommaPos = string::npos;
 
+  auto nextActor = [&basePos, &nextCommaPos](string &actors) {
+    basePos = nextCommaPos + 1;
+    nextCommaPos = actors.find_first_of(",", basePos);
+    size_t digCount = nextCommaPos - basePos;
+    return actors.substr(basePos, digCount);
+  };
+
+  QSqlQuery query = model->getQuery();
+  string qsql;
+  qsql = string("INSERT INTO TP_Prob_Vict_Loss "
+    "(ScenarioId, Turn_t, Est_h, Init_i, ThrdP_k, Rcvr_j, Prob, Util_V, Util_L) "
+    "VALUES ("
+    "'") + model->getScenarioID() + "',"
+    " :t, :h, :i, :thrdp_k, :j, :prob, :util_v, :util_l )";
+
+  query.prepare(QString::fromStdString(qsql));
+
+  model->beginDBTransaction();
+  for (auto &tpv : tpvData) {
+    auto thij = tpv.first;
+    auto tpvArray = tpv.second;
+
+    basePos = -1;
+    digCount = 0;
+    nextCommaPos = string::npos;
+
+    auto t = std::stoi(nextActor(thij));
+    auto h = std::stoi(nextActor(thij));
+    auto i = std::stoi(nextActor(thij));
+    auto j = std::stoi(nextActor(thij));
+
+    query.bindValue(":t", t);
+    query.bindValue(":h", h);
+    query.bindValue(":i", i);
+    query.bindValue(":j", j);
+
+    const unsigned int na = model->numAct;
+
+    for (int tpk = 0; tpk < na; tpk++) {  // third party voter, tpk
+      query.bindValue(":thrdp_k", tpk);
+
+      // bind the data
+      query.bindValue(":prob", tpvArray(tpk, 0));
+      query.bindValue(":util_v", tpvArray(tpk, 1));
+      query.bindValue(":util_l", tpvArray(tpk, 2));
+
+      // actually record it
+      if (!query.exec()) {
+        cout << query.lastError().text().toStdString() << endl;
+      }
+    }
+  }
+
+  qsql = string("INSERT INTO ProbVict "
+    "(ScenarioId, Turn_t, Est_h,Init_i,Rcvr_j,Prob) VALUES ('")
+    + model->getScenarioID() + "', :t, :h, :i, :j, :phij)";
+
+  query.prepare(QString::fromStdString(qsql));
+
+  for (auto &phijVal : phijData) {
+    auto thij = phijVal.first;
+    auto phij = phijVal.second;
+
+    basePos = -1;
+    digCount = 0;
+    nextCommaPos = string::npos;
+
+    auto t = std::stoi(nextActor(thij));
+    auto h = std::stoi(nextActor(thij));
+    auto i = std::stoi(nextActor(thij));
+    auto j = std::stoi(nextActor(thij));
+
+    query.bindValue(":t", t);
+    query.bindValue(":h", h);
+    query.bindValue(":i", i);
+    query.bindValue(":j", j);
+    query.bindValue(":phij", phij);
+
+    // actually record it
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
+  }
+
+  qsql = string("INSERT INTO UtilChlg "
+    "(ScenarioId, Turn_t, Est_h,Aff_k,Init_i,Rcvr_j,Util_SQ,Util_Vict,Util_Cntst,Util_Chlg) VALUES ('")
+    + model->getScenarioID() + "', :t, :h, :k, :i, :j, :euSQ, :euVict, :euCntst, :euChlg)";
+
+  query.prepare(QString::fromStdString(qsql));
+
+  for (auto &euVal : euData) {
+    auto thkij = euVal.first;
+    basePos = -1;
+    digCount = 0;
+    nextCommaPos = string::npos;
+
+    auto t = std::stoi(nextActor(thkij));
+    auto h = std::stoi(nextActor(thkij));
+    auto k = std::stoi(nextActor(thkij));
+    auto i = std::stoi(nextActor(thkij));
+    auto j = std::stoi(nextActor(thkij));
+
+    auto eu = euVal.second;
+    auto euSQ = eu[0];
+    auto euVict = eu[1];
+    auto euCntst = eu[2];
+    auto euChlg = eu[3];
+
+    query.bindValue(":t", t);
+    query.bindValue(":h", h);
+    query.bindValue(":k", k);
+    query.bindValue(":i", i);
+    query.bindValue(":j", j);
+    query.bindValue(":euSQ", euSQ);
+    query.bindValue(":euVict", euVict);
+    query.bindValue(":euCntst", euCntst);
+    query.bindValue(":euChlg", euChlg);
+
+    // actually record it
+    if (!query.exec()) {
+      cout << query.lastError().text().toStdString() << endl;
+    }
+  }
+
+  model->commitDBTransaction();
+  return;
+}
 
 };
 // end of namespace

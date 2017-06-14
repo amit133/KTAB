@@ -67,7 +67,7 @@ void MainWindow::importXmlGetFilePath(bool bl,QString filepath)
         homeDirectory = dir.absolutePath();
 
         setCurrentFile(filename);
-        emit releaseDatabase();
+
         lineGraphDock->setVisible(false);
         barGraphDock->setVisible(false);
         quadMapDock->setVisible(false);
@@ -104,7 +104,7 @@ void MainWindow::openStatusXml(bool status)
 
 void MainWindow::xmlDataParsedFromFile(QStringList modelDesc, QStringList modpara,
                                        QStringList dims, QStandardItemModel * actModel,
-                                       QList<QStringList> idealAdj)
+                                       QVector<QStringList> idealAdj)
 {
     dimensionsLineEdit->setText(QString::number(dims.length()));
     dimensionsLineEdit->setEnabled(true);
@@ -188,7 +188,7 @@ void MainWindow::populateXmlTable(QStandardItemModel *actorsVal)
     connect(xmlSmpDataModel,SIGNAL(itemChanged(QStandardItem*)),this, SLOT(xmlCellSelected(QStandardItem*)));
 }
 
-void MainWindow::populateAffinityMatrix(QList<QStringList> idealAdj, QVector<QString> actors)
+void MainWindow::populateAffinityMatrix(QVector<QStringList> idealAdj, QVector<QString> actors)
 {
     QStandardItemModel * affinityModel = new QStandardItemModel;
 

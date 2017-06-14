@@ -46,16 +46,16 @@ class ColorPickerDialog : public QDialog
 public:
     explicit ColorPickerDialog(QWidget *parent = 0);
     ~ColorPickerDialog();
-    void intializeActors(QList<QString> actorsNames, QList<QColor> colors);
+    void intializeActors(QVector<QString> actorsNames, QVector<QColor> colors);
 
 private:
     void initializeDialogWindow();
-    QFrame *  initializeActorFrame(QString actName, QList<QColor> colors, int index);
+    QFrame *  initializeActorFrame(QString actName, QVector<QColor> colors, int index);
 
     QVBoxLayout * vLayout;
-    QList<QColor> pickerColors;
-    QList<QPushButton *> colorButtons;
-    QList<QString> actorNamesList;
+    QVector<QColor> pickerColors;
+    QVector<QPushButton *> colorButtons;
+    QVector<QString> actorNamesList;
 
     QColor copyColorCode;
 
@@ -64,7 +64,7 @@ private slots:
     void donePushButtonClicked(bool bl);
     void showContextMenuForActorPB(QPoint pos);
 signals:
-    void changedColors(QList<QColor> colors);
+    void changedColors(QVector<QColor> colors);
 };
 
 #endif // COLORPICKERDIALOG_H

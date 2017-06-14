@@ -84,35 +84,220 @@ smpStopFn(unsigned int minIter, unsigned int maxIter, double minDeltaRatio, doub
 
 } // end of namespace
 
+
+void MainWindow::configureDB(bool bl)
+{
+    dbDialog = new DatabaseDialog;
+    connect(dbDialog,SIGNAL(connectionStringPath(QString)),this,SLOT(connectionStrPath(QString)));
+    dbDialog->showDialog();
+}
+
+void MainWindow::postgresDBList(QStringList *dbList, bool imp)
+{
+    if(recentFileAccess.isEmpty()==true)
+    {
+        QDialog * dbListDialog = new QDialog(this);
+        QGridLayout * mainLayout = new QGridLayout;
+        dbListDialog->setLayout(mainLayout);
+        dbListDialog->setMaximumWidth(500);
+        dbListDialog->setMaximumHeight(300);
+        dbListDialog->setModal(true);
+        dbListDialog->setWindowTitle("KTAB SMP: Databases ");
+        dbListDialog->setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+        QLabel *actorHLabel= new QLabel("Existing Postgres DB List");
+        mainLayout->addWidget(actorHLabel,0,0,Qt::AlignHCenter);
+
+        QListView * dbListView = new QListView(this);
+        QStandardItemModel *dbListModel = new QStandardItemModel;
+
+        for (int i = 0 ; i < dbList->count(); ++i)
+        {
+            QStandardItem * item = new QStandardItem(dbList->at(i));
+            item->setEditable(false);
+            dbListModel->setItem(i,0,item);
+        }
+        dbListView->setModel(dbListModel);
+
+        connect(dbListView,SIGNAL(clicked(QModelIndex)),this,SLOT(dbListClicked(QModelIndex)));
+
+        mainLayout->addWidget(actorHLabel,1,0,Qt::AlignHCenter);
+        mainLayout->addWidget(dbListView,2,0);
+
+        dbDialogName = new QLineEdit(generateTimeStamp());
+        QPushButton * generateTS = new QPushButton;
+        generateTS->setIcon(QIcon("://images/regenerate.png"));
+        generateTS->setMaximumWidth(50);
+        connect(generateTS,SIGNAL(clicked(bool)),this,SLOT(getTimeStamp(bool)));
+
+        QGridLayout * fileNameLayout = new QGridLayout;
+        fileNameLayout->addWidget(dbDialogName,0,0);
+        fileNameLayout->addWidget(generateTS,0,3);
+
+        mainLayout->addLayout(fileNameLayout,3,0);
+
+        QGridLayout * controlsLayout = new QGridLayout;
+        QPushButton * donePB = new QPushButton("Done");
+        QPushButton * cancelPB = new QPushButton("Cancel");
+        controlsLayout->addWidget(donePB,0,Qt::AlignRight);
+        controlsLayout->addWidget(cancelPB,0,Qt::AlignLeft);
+
+        connect(donePB,SIGNAL(clicked(bool)),dbListDialog,SLOT(close()));
+        connect(donePB,SIGNAL(clicked(bool)),this,SLOT(dbDonePushButtonClicked(bool)));
+        connect(cancelPB,SIGNAL(clicked(bool)),dbListDialog,SLOT(close()));
+
+        mainLayout->addLayout(controlsLayout,4,0,Qt::AlignBottom);
+
+        //Different options for Import and Run
+        if(true==imp)//DB import
+        {
+            dbDialogName->setText(dbList->last());
+            generateTS->hide();
+        }
+        else
+        {
+            generateTS->show();
+        }
+        dbListDialog->show();
+    }
+    else
+    {
+        if(dbList->contains(recentFileAccess))
+        {
+            postgresRecentAccess();
+        }
+        else
+        {
+            removeFromRecentFileHistory(recentFileAccess);
+            recentFileAccess.clear();
+        }
+    }
+}
+
+void MainWindow::getTimeStamp(bool bl)
+{
+    dbDialogName->setText(generateTimeStamp());
+}
+
+void MainWindow::configUsingMenu(bool bl)
+{
+    menuconfig = true;
+}
+
+void MainWindow::dbListClicked(QModelIndex indx)
+{
+    dbDialogName->setText(indx.data().toString());
+}
+
+void MainWindow::dbDonePushButtonClicked(bool bl)
+{
+    //index 1
+    QString dbName = dbDialogName->text();
+    dbPath=dbName;
+    QStringList connString = connectionString.split(";");
+
+    connectionString.clear();
+    for(int i = 0 ; i < connString.length() ; ++ i)
+    {
+        if(i==1)
+        {
+            connectionString.append("Database=").append(dbName).append(";");
+        }
+        else
+        {
+            QString str = connString.at(i);
+            if(!str.trimmed().isEmpty())
+            {
+                connectionString.append(str).append(";");
+            }
+        }
+    }
+
+    if(importedDBFile==false)
+    {
+        runModel(connectionString,dbName);
+    }
+    else
+    {
+        dbGetFilePAth(true,dbPath,false);
+    }
+}
+
 void MainWindow::runPushButtonClicked(bool bl)
 {
     Q_UNUSED(bl)
+    importedDBFile=false;
+    if(connectionString.isEmpty())
+    {
+        menuconfig = false;
+        configureDB(true);
+    }
+    else
+    {
+        if(connectionString.contains("QSQLITE")) // for SQLite
+        {
+            QDateTime UTC = QDateTime::currentDateTime().toTimeSpec(Qt::UTC);
+            QString name (UTC.toString());
+
+            name.replace(" ","_").replace(":","_");
+
+            QFileDialog fileDialog(this);
+            QString dbFilePath = fileDialog.getSaveFileName(this, tr("Save DB file as "),
+                                                            QString(homeDirectory+QDir::separator()+name),tr("DB File (*.db)"),
+                                                            0,QFileDialog::DontConfirmOverwrite);
+            if(!dbFilePath.isEmpty())
+            {
+                QString connectionStr;
+                connectionStr.append("Driver=QSQLITE;");//connectionType
+                //            connectionStr.append("Server=localhost;");//host address
+                connectionStr.append("Database=").append(dbFilePath.remove(".db").trimmed()).append(";");
+
+                QDir dir = QFileInfo(dbFilePath.append(".db")).absoluteDir();
+                homeDirectory = dir.absolutePath();
+
+                connectionString = connectionStr;
+                runModel(connectionString,dbFilePath.remove(".db"));
+            }
+        }
+        else // Postgres
+        {
+            emit getPostgresDBList(connectionString,false);// true == imported, false == run
+        }
+    }
+}
+
+void MainWindow::runModel(QString conStr, QString fileName)
+{
 
     QDateTime UTC = QDateTime::currentDateTime().toTimeSpec(Qt::UTC);
     QString name (UTC.toString());
 
     name.replace(" ","_").replace(":","_");
 
-
     logSMPDataOptionsAnalysis();
 
-    QString dbFilePath;
+    QString connectDBString;
 
-    QFileDialog fileDialog(this);
-    dbFilePath = fileDialog.getSaveFileName(this, tr("Save DB file as "),
-                                            QString(homeDirectory+QDir::separator()+name),tr("DB File (*.db)"),
-                                            0,QFileDialog::DontConfirmOverwrite);
+    //    QFileDialog fileDialog(this);
+    //    dbFilePath = fileDialog.getSaveFileName(this, tr("Save DB file as "),
+    //                                            QString(homeDirectory+QDir::separator()+name),tr("DB File (*.db)"),
+    //                                            0,QFileDialog::DontConfirmOverwrite);
 
-    if(!dbFilePath.isEmpty())
+    connectDBString = conStr;
+    //    qDebug()<<connectDBString << "db";
+
+    if(!connectDBString.isEmpty())
     {
         runButton->setEnabled(false);
         runButton->setStyleSheet("border-style: outset; border-width: 2px;border-color: red;");
 
-        if(!dbFilePath.endsWith(".db"))
-            dbFilePath.append(".db");
+        //        if(dbFilePath.endsWith(".db"))
+        //        {
+        //            dbFilePath.remove(".db");
+        //        }
 
-        QDir dir =QFileInfo(dbFilePath).absoluteDir();
-        homeDirectory = dir.absolutePath();
+        //        QDir dir =QFileInfo(dbFilePath).absoluteDir();
+        //        homeDirectory = dir.absolutePath();
 
         statusBar()->showMessage(" Please wait !! Executing SMP ....  This may take a while ....");
 
@@ -171,14 +356,25 @@ void MainWindow::runPushButtonClicked(bool bl)
         cout << "-----------------------------------" << endl << flush;
         if(savedAsXml==true)
         {
+            //            currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
+            //                                                      (sqlFlags, dbFilePath.toStdString(),
+            //                                                       xmlPath.toStdString(),seed,false,parameters));
+            SMPLib::SMPModel::loginCredentials(connectDBString.toStdString());
+
             currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
-                                                      (sqlFlags, dbFilePath.toStdString(),
+                                                      (sqlFlags, fileName.toStdString(),
                                                        xmlPath.toStdString(),seed,false,parameters));
         }
         else
         {
+            //            currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
+            //                                                      (sqlFlags, dbFilePath.toStdString(),
+            //                                                       csvPath.toStdString(),seed,false,parameters));
+
+            SMPLib::SMPModel::loginCredentials(connectDBString.toStdString());
+
             currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
-                                                      (sqlFlags, dbFilePath.toStdString(),
+                                                      (sqlFlags,fileName.toStdString(),
                                                        csvPath.toStdString(),seed,false,parameters));
         }
         cout << "-----------------------------------" << endl;
@@ -189,7 +385,8 @@ void MainWindow::runPushButtonClicked(bool bl)
         QApplication::restoreOverrideCursor();
 
         statusBar()->showMessage(" Process Completed !! ");
-        smpDBPath(dbFilePath);
+
+        smpDBPath(fileName);
     }
     else
     {
@@ -625,7 +822,6 @@ void MainWindow::saveTurnHistoryToCSV()
         QDir dir =QFileInfo(csvFileNameLocation).absoluteDir();
         homeDirectory = dir.absolutePath();
         //        setCurrentFile(csvFileNameLocation);
-        qDebug()<<csvFileNameLocation.remove(".csv") << dbPath <<scenarioBox ;
         if(sankeyOutputHistory==true)
         {
             SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString()

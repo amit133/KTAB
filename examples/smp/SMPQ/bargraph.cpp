@@ -413,7 +413,7 @@ void MainWindow::barGraphBinWidthButtonClicked(bool bl)
     barGraphTurnSliderChanged(barGraphTurnSlider->value());
 }
 
-void MainWindow::barGraphActorsSalienceCapability(QList<int> aId, QList<double> sal, QList<double> cap,double r1,double r2)
+void MainWindow::barGraphActorsSalienceCapability(QVector<int> aId, QVector<double> sal, QVector<double> cap,double r1,double r2)
 {
 
     if( barActorCBList.length() == lineActorCBList.length())
@@ -428,7 +428,7 @@ void MainWindow::barGraphActorsSalienceCapability(QList<int> aId, QList<double> 
             QCPBars * bar;
             double barHeight = 0;
 
-            QList <QVector <double> > values ;
+            QVector <QVector <double> > values ;
             range<< ((r1+r2)/2);
 
             for (int stackedActorsInOneBar = 0 ; stackedActorsInOneBar < aId.length(); ++ stackedActorsInOneBar)

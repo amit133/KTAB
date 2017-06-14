@@ -44,6 +44,10 @@
 #include "kutils.h"
 #include "kmatrix.h"
 #include "prng.h"
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <map>
+#include <memory>
 
 namespace KBase {
 using std::ostream;
@@ -59,6 +63,7 @@ class PRNG;
 class State;
 class Actor;
 class KTable;
+
 
 // -------------------------------------------------
 // The enum classes are quite repetitive.
@@ -415,6 +420,14 @@ public:
   uint64_t getSeed() const;
 
   static KTable * createSQL(unsigned int n);
+
+  void initDBDriver(QString connectionName);
+  bool connectDB();
+  static void loginCredentials(string connString);
+  void beginDBTransaction();
+  void commitDBTransaction();
+  QSqlQuery getQuery();
+
 protected:
   //static string createTableSQL(unsigned int tn);
   static const int NumTables = 13; //TODO: constant need to be redefined when new table is added
@@ -433,8 +446,23 @@ protected:
   // this is the basic model of victory dependent on strength-ratio
   static tuple<double, double> vProb(VPModel vpm, const double s1, const double s2);
 
-
-
+  static QString dbDriver;
+  static QString server;
+  static int port;
+  static QString databaseName;
+  static QString userName;
+  static QString password;
+  QSqlDatabase *qtDB = nullptr;
+  mutable QSqlQuery query;
+  void configSqlite() const;
+  void execQuery(std::string& qry);
+  bool createDB(const QString& dbName);
+  bool connect(const QString& server,
+    const int port,
+    const QString& databaseName,
+    const QString& userName,
+    const QString& password);
+  bool isDB(const QString& databaseName);
 private:
   static KMatrix markovUniformPCE(const KMatrix & pv);
   //static KMatrix markovIncentivePCE(const KMatrix & pv);

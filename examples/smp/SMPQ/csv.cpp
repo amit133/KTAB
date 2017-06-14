@@ -119,7 +119,7 @@ void CSV::readCSVFile(QString path)
 }
 
 
-void CSV::exportActorColors(QString path, QList<int> actorIds, QList<QString> colorCode)
+void CSV::exportActorColors(QString path, QVector<int> actorIds, QVector<QString> colorCode)
 {
     QFile f(path);
 
@@ -136,7 +136,7 @@ void CSV::exportActorColors(QString path, QList<int> actorIds, QList<QString> co
             strList << QString::number(actorIds.at(row));
             strList << colorCode.at(row);
             data << strList.join(",") + "\n";
-            qDebug() << strList;
+//            qDebug() << strList;
         }
         f.close();
     }
@@ -147,7 +147,7 @@ void CSV::importActorColors(QString path, int actCount)
     QRegExp space("^\\s*$");
 
     //getting the csv file path
-    QList<QColor> colorCodeList;
+    QVector<QColor> colorCodeList;
     if(!path.isEmpty())
     {
         QFile file(path);
@@ -179,7 +179,7 @@ void CSV::importActorColors(QString path, int actCount)
             }
             file.close();
         }
-        qDebug()<<colorCodeList.length() << actCount;
+//        qDebug()<<colorCodeList.length() << actCount;
 
         emit(importedColors(colorCodeList));
 

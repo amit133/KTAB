@@ -109,6 +109,17 @@ if(NOT KUTILS_FOUND)
   message(FATAL_ERROR "Could not find kutils")
 endif(NOT KUTILS_FOUND)
 
+#--------------------------------------------------
+find_package(qtlibs)
+
+set(CMAKE_PREFIX_PATH ${PREFIX_PATH})
+message(STATUS "CMAKE_PREFIX_PATH" ${CMAKE_PREFIX_PATH})
+
+find_package(Qt5 REQUIRED COMPONENTS Core Sql)
+if(NOT Qt5_FOUND)
+  message(FATAL_ERROR "Could not find QT")
+endif(NOT Qt5_FOUND)
+
 # -------------------------------------------------
 # files to be built into a library go in libsrc/
 # any application or testing code goes in src
@@ -128,6 +139,9 @@ set(KTABMODEL_SRCS
 
 add_library(kmodel STATIC ${KTABMODEL_SRCS})
 
+target_link_libraries (kmodel
+    Qt5::Sql
+)
  
 # -------------------------------------------------
 # Under Linux, default start of DESTINATION path is /usr/local/ 
