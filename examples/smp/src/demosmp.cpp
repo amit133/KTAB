@@ -95,7 +95,7 @@ int main(int ac, char **av) {
     printf("--savehist       export by-dim by-turn position histories (input+'_posLog.csv') and\n");
     printf("                 by-dim actor effective powers (input+'_effPower.csv')\n");
     printf("--seed <n>       set a 64bit seed; default is %020llu; 0 means truly random\n", dSeed);
-    printf("--connstr        a semicolon separated string for database server credentials:\n");
+    printf("--connstr        a comma separated string for database server credentials:\n");
     printf("                 \"Driver=<QPSQL|QSQLITE>;Server=<IP>*;[Port=<port>]*;Database=<DB_name>;\n");
     printf("                 Uid=<user_id>*;Pwd=<password>*\"*for QPSQL only\n");
   };

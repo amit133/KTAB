@@ -1033,6 +1033,12 @@ bool Model::loginCredentials(string connString) {
 
   auto parseKeyValue = [&trimWhites](const string &pair, string &key, string &value) {
     auto it = std::find(pair.begin(), pair.end(), '=');
+    if (it == pair.end()) {
+      string err = "Missing the separator of key=value pair. The pair should be separated by a '='";
+      LOG(INFO) << err;
+      lastExceptionMsg = err;
+      return false;
+    }
     key.assign(pair.begin(), it);
     trimWhites(key);
     std::transform(key.begin(), key.end(), key.begin(), ::tolower);
@@ -1051,6 +1057,13 @@ bool Model::loginCredentials(string connString) {
     //std::transform(key.begin(), key.end(), key.begin(), ::tolower);
     //value.assign(it + 1, parsedParam.end());
     parseKeyValue(parsedParam, key, value);
+    if(key.empty() || value.empty()) {
+      string err = "Invalid key-pair passed: ";
+      err += parsedParam;
+      LOG(INFO) << err;
+      lastExceptionMsg = err;
+      return false;
+    }
     userParams userParam;
     try {
       userParam = mapStringToUserParams.at(key);

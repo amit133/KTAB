@@ -27,6 +27,8 @@
 using SMPLib::SMPModel;
 using SMPLib::SMPActor;
 using SMPLib::SMPState;
+using KBase::KException;
+
 void MainWindow::initializeQuadMapDock()
 {
     quadMapCustomGraph= new QCustomPlot;
@@ -425,25 +427,69 @@ void MainWindow::getUtilChlgHorizontalVerticalAxisData(int turn)
             }
             //            emit getUtilChlgAndUtilSQfromDB(VHAxisValues);
             double x,y;
+            QString exceptionMsg;
             if(useHistory)
             {
-                y =SMPLib::SMPModel::getQuadMapPoint(VHAxisValues.at(0),VHAxisValues.at(1),VHAxisValues.at(2),
-                                                     VHAxisValues.at(3),VHAxisValues.at(4));
-                x =SMPLib::SMPModel::getQuadMapPoint(VHAxisValues.at(5),VHAxisValues.at(6),VHAxisValues.at(7),
-                                                     VHAxisValues.at(8),VHAxisValues.at(9));
+                try {
+                    y =SMPLib::SMPModel::getQuadMapPoint(VHAxisValues.at(0),VHAxisValues.at(1),VHAxisValues.at(2),
+                                                         VHAxisValues.at(3),VHAxisValues.at(4));
+                    x =SMPLib::SMPModel::getQuadMapPoint(VHAxisValues.at(5),VHAxisValues.at(6),VHAxisValues.at(7),
+                                                         VHAxisValues.at(8),VHAxisValues.at(9));
+                }
+                catch (KException &ke)
+                {
+                    exceptionMsg = QString::fromStdString(ke.msg);
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+                catch (std::exception &std_ex)
+                {
+                    exceptionMsg = std_ex.what();
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+                catch (...)
+                {
+                    exceptionMsg = "SMPLib::SMPModel::getQuadMapPoint: Unknown Exception Caught while getting QuadMap values";
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
             }
             else
             {
                 QString connectionName = dbObj->getConnectionName();
-                y =SMPLib::SMPModel::getQuadMapPoint(connectionName,scenarioBox.toStdString(),VHAxisValues.at(0),
-                                                     VHAxisValues.at(1),VHAxisValues.at(2),VHAxisValues.at(3),
-                                                     VHAxisValues.at(4));
-                x =SMPLib::SMPModel::getQuadMapPoint(connectionName,scenarioBox.toStdString(),VHAxisValues.at(5),
-                                                     VHAxisValues.at(6),VHAxisValues.at(7),VHAxisValues.at(8),
-                                                     VHAxisValues.at(9));
+                try {
+                    y =SMPLib::SMPModel::getQuadMapPoint(connectionName,scenarioBox.toStdString(),VHAxisValues.at(0),
+                                                         VHAxisValues.at(1),VHAxisValues.at(2),VHAxisValues.at(3),
+                                                         VHAxisValues.at(4));
+                    x =SMPLib::SMPModel::getQuadMapPoint(connectionName,scenarioBox.toStdString(),VHAxisValues.at(5),
+                                                         VHAxisValues.at(6),VHAxisValues.at(7),VHAxisValues.at(8),
+                                                         VHAxisValues.at(9));      }
+                catch (KException &ke)
+                {
+                    exceptionMsg = QString::fromStdString(ke.msg);
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+                catch (std::exception &std_ex)
+                {
+                    exceptionMsg = std_ex.what();
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+                catch (...)
+                {
+                    exceptionMsg = "SMPLib::SMPModel::getQuadMapPoint: Unknown Exception Caught while getting QuadMap values";
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
             }
 
-            quadMapUtilChlgandSQValues(VHAxisValues.at(0),x,y,VHAxisValues.at(4));
+            if(true==exceptionMsg.isEmpty())
+            {
+                quadMapUtilChlgandSQValues(VHAxisValues.at(0),x,y,VHAxisValues.at(4));
+                exceptionMsg.clear();
+            }
         }
     }
 }
