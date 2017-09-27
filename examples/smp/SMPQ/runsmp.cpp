@@ -36,6 +36,7 @@ using KBase::Position;
 using KBase::State;
 using KBase::VotingRule;
 using KBase::VPModel;
+using KBase::KException;
 
 namespace DemoSMP {
 
@@ -74,8 +75,8 @@ smpStopFn(unsigned int minIter, unsigned int maxIter, double minDeltaRatio, doub
         const double aRatio = dxy / d01;
         quiet = (aRatio < minDeltaRatio);
         LOG(INFO) << KBase::getFormattedString(
-          "Fractional change compared to first step: %.4f  (target=%.4f)\n",
-          aRatio, minDeltaRatio);
+                         "Fractional change compared to first step: %.4f  (target=%.4f)\n",
+                         aRatio, minDeltaRatio);
         return tooLong || (longEnough && quiet);
     };
     return sfn;
@@ -93,7 +94,7 @@ void MainWindow::configureDB(bool bl)
         conTypeIndex = 1;
     }
     dbDialog = new DatabaseDialog;
-//    connect(dbDialog,SIGNAL(configDbDriver(QString)),dbObj,SLOT(addDatabase(QString)));
+    //    connect(dbDialog,SIGNAL(configDbDriver(QString)),dbObj,SLOT(addDatabase(QString)));
     connect(dbDialog,SIGNAL(connectionStringPath(QString,QStringList)),this,SLOT(connectionStrPath(QString,QStringList)));
     dbDialog->showDialog(conTypeIndex,dbParaMemory);
 }
@@ -289,11 +290,6 @@ void MainWindow::runModel(QString conStr, QString fileName)
 
     QString connectDBString;
 
-    //    QFileDialog fileDialog(this);
-    //    dbFilePath = fileDialog.getSaveFileName(this, tr("Save DB file as "),
-    //                                            QString(homeDirectory+QDir::separator()+name),tr("DB File (*.db)"),
-    //                                            0,QFileDialog::DontConfirmOverwrite);
-
     connectDBString = conStr;
     //    qDebug()<<connectDBString << "db";
 
@@ -301,14 +297,6 @@ void MainWindow::runModel(QString conStr, QString fileName)
     {
         runButton->setEnabled(false);
         runButton->setStyleSheet("border-style: outset; border-width: 2px;border-color: red;");
-
-        //        if(dbFilePath.endsWith(".db"))
-        //        {
-        //            dbFilePath.remove(".db");
-        //        }
-
-        //        QDir dir =QFileInfo(dbFilePath).absoluteDir();
-        //        homeDirectory = dir.absolutePath();
 
         statusBar()->showMessage(" Please wait !! Executing SMP ....  This may take a while ....");
 
@@ -367,46 +355,50 @@ void MainWindow::runModel(QString conStr, QString fileName)
         } else {
             inputDataFile = csvPath;
         }
+        bool scenarioIdAvailable = false;
 
         bool isDbConnected = SMPLib::SMPModel::loginCredentials(connectDBString.toStdString());
 
-        currentScenarioId = QString::fromStdString(SMPLib::SMPModel::runModel
-                                                  (sqlFlags,
-                                                   inputDataFile.toStdString(),seed,false,parameters));
+        if(false==isDbConnected)
+        {
+         QApplication::restoreOverrideCursor();
+         displayMessage("Exception",QString::fromStdString(KBase::Model::getLastError()));
+        }
+        else
+        {
+             currentScenarioId = QString::fromStdString(SMPLib::SMPModel::runModel
+                                                       (sqlFlags,
+                                                        inputDataFile.toStdString(),seed,false,parameters));
+            if(true==currentScenarioId.isEmpty())
+            {
+                QApplication::restoreOverrideCursor();
+                displayMessage("Exception",QString::fromStdString(KBase::Model::getLastError()));
+                scenarioIdAvailable=false;
+            }
+            else
+            {
+                scenarioIdAvailable=true;
+            }
+        }
 
-//        if(savedAsXml==true)
-//        {
-//            //            currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
-//            //                                                      (sqlFlags, dbFilePath.toStdString(),
-//            //                                                       xmlPath.toStdString(),seed,false,parameters));
-//            bool isDbConnected = SMPLib::SMPModel::loginCredentials(connectDBString.toStdString());
+        if(true == isDbConnected && true == scenarioIdAvailable)
+        {
+            KBase::displayProgramEnd(sTime);
 
-//            //if()
+            QApplication::restoreOverrideCursor();
+            statusBar()->showMessage(" Process Completed !! ");
 
-//            currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
-//                                                      (sqlFlags,
-//                                                       xmlPath.toStdString(),seed,false,parameters));
-//        }
-//        else
-//        {
-//            //            currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
-//            //                                                      (sqlFlags, dbFilePath.toStdString(),
-//            //                                                       csvPath.toStdString(),seed,false,parameters));
+            smpDBPath(fileName);
+        }
+        else
+        {
+            QApplication::restoreOverrideCursor();
 
-//            SMPLib::SMPModel::loginCredentials(connectDBString.toStdString());
-
-//            currentScenarioId =QString::fromStdString(SMPLib::SMPModel::runModel
-//                                                      (sqlFlags,
-//                                                       csvPath.toStdString(),seed,false,parameters));
-//        }
-
-        KBase::displayProgramEnd(sTime);
-
-        QApplication::restoreOverrideCursor();
-
-        statusBar()->showMessage(" Process Completed !! ");
-
-        smpDBPath(fileName);
+            statusBar()->showMessage("SMP Model Run Cancelled because of an Exception !! ");
+            QMessageBox::warning(this,"Exception", "SMP Model Run Cancelled because of an Exception!! ",QMessageBox::Ok);
+            runButton->setEnabled(true);
+            runButton->setStyleSheet("border-style: outset; border-width: 2px;border-color: green;");
+        }
     }
     else
     {
@@ -833,7 +825,6 @@ void MainWindow::setDefaultParameters()
 
 void MainWindow::saveTurnHistoryToCSV()
 {
-    SMPLib::SMPModel::loginCredentials(connectionString.toStdString());
 
     QString csvFileNameLocation = QFileDialog::getSaveFileName(
                 this, tr("Save Log File to "),QString(homeDirectory+QDir::separator()+"Log"),"CSV File (*.csv)");
@@ -845,22 +836,83 @@ void MainWindow::saveTurnHistoryToCSV()
         //        setCurrentFile(csvFileNameLocation);
         if(sankeyOutputHistory==true)
         {
-            SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString()
-                                      ,dbPath.toStdString(),scenarioBox.toStdString());
-            statusBar()->showMessage("Turn History is stored in : " +
-                                     csvFileNameLocation+ "_effPow.csv and " + " " +
-                                     csvFileNameLocation+ "_posLog.csv files",2000);
-        }
-        else
-        {
-            SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString());
+            bool isDbConnected = SMPLib::SMPModel::loginCredentials(connectionString.toStdString());
+
+            if(false==isDbConnected)
+            {
+                displayMessage("Exception",QString::fromStdString(KBase::Model::getLastError()));
+            }
+            else
+            {
+                QString exceptionMsg;
+                try
+                {
+                    SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString()
+                                              ,dbPath.toStdString(),scenarioBox.toStdString());
+                }
+                catch (KException &ke)
+                {
+                    exceptionMsg = QString::fromStdString(ke.msg);
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+                catch (std::exception &std_ex)
+                {
+                    exceptionMsg = std_ex.what();
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+                catch (...)
+                {
+                    exceptionMsg = "SMPLib::SMPModel::getQuadMapPoint: Unknown Exception Caught while getting QuadMap values";
+                    displayMessage("Exception",exceptionMsg);
+                    LOG(INFO) << exceptionMsg.toStdString();
+                }
+            }
+
+
+            //                SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString()
+            //                                          ,dbPath.toStdString(),scenarioBox.toStdString());
             statusBar()->showMessage("Turn History is stored in : " +
                                      csvFileNameLocation+ "_effPow.csv and " + " " +
                                      csvFileNameLocation+ "_posLog.csv files",2000);
         }
     }
+    else
+    {
 
+        QString exceptionMsg;
+        try
+        {
+            SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString());
+        }
+        catch (KException &ke)
+        {
+            exceptionMsg = QString::fromStdString(ke.msg);
+            displayMessage("Exception",exceptionMsg);
+            LOG(INFO) << exceptionMsg.toStdString();
+        }
+        catch (std::exception &std_ex)
+        {
+            exceptionMsg = std_ex.what();
+            displayMessage("Exception",exceptionMsg);
+            LOG(INFO) << exceptionMsg.toStdString();
+        }
+        catch (...)
+        {
+            exceptionMsg = "SMPLib::SMPModel::getQuadMapPoint: Unknown Exception Caught while getting QuadMap values";
+            displayMessage("Exception",exceptionMsg);
+            LOG(INFO) << exceptionMsg.toStdString();
+        }
+    }
+    //    SMPLib::md0->sankeyOutput(csvFileNameLocation.toStdString());
+    statusBar()->showMessage("Turn History is stored in : " +
+                             csvFileNameLocation+ "_effPow.csv and " + " " +
+                             csvFileNameLocation+ "_posLog.csv files",2000);
 }
+
+
+
 
 // --------------------------------------------
 // Copyright KAPSARC. Open source MIT License.
