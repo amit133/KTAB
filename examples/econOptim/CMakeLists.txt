@@ -1,0 +1,125 @@
+# --------------------------------------------
+# Copyright KAPSARC. Open source MIT License.
+# --------------------------------------------
+# The MIT License (MIT)
+# 
+# Copyright (c) 2015 King Abdullah Petroleum Studies and Research Center
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+# and associated documentation files (the "Software"), to deal in the Software without
+# restriction, including without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom 
+# the Software is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING 
+# BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# -------------------------------------------------
+
+project(econOptim)
+
+cmake_minimum_required(VERSION 2.8)
+cmake_policy(VERSION 2.8)
+set(CMAKE_MODULE_PATH
+  ${CMAKE_MODULE_PATH}
+  )
+
+set (LOCAL_MODULE_DIR
+    ${PROJECT_SOURCE_DIR}/cmakemodules)
+
+set(CMAKE_MODULE_PATH
+    ${CMAKE_MODULE_PATH}
+    ${LOCAL_MODULE_DIR}
+    )
+
+set(EXECUTABLE_OUTPUT_PATH   ${PROJECT_SOURCE_DIR}/)
+
+# -------------------------------------------------
+# basic check that this is a supported compiler/OS
+# -------------------------------------------------
+if (WIN32)
+  message (STATUS "OS: WIN32 (generic Windows)")
+  if (MSVC)
+    message (STATUS "Compiler: MSVC")
+  elseif(CMAKE_COMPILER_IS_GNUCXX)
+    message (STATUS "Compiler: GCC")
+  else(MSVC)
+    message(SEND_ERROR "Unsupported Windows compiler")
+  endif()
+elseif(UNIX)
+  message (STATUS "OS: UNIX (generic *nix)")
+else()
+  message(SEND_ERROR "Unsupported OS")
+endif(WIN32)
+
+# -------------------------------------------------
+find_package(TinyXML2)
+if (NOT TINYXML2_FOUND)
+    message(FATAL_ERROR "Could not find TinyXML2")
+endif (NOT TINYXML2_FOUND) 
+
+# -------------------------------------------------
+find_package(Alglib)
+
+# -------------------------------------------------
+# files to be built into a library go in libsrc/
+# any application or testing code goes in src
+
+# -------------------------------------------------
+# Under Linux, default start of DESTINATION path is /usr/local/ 
+# so "alglib/lib" denotes destination /usr/local/alglib/lib
+# Under Windows, default start of DESTINATION path is "C:\Program Files\kutils\"
+# so "alglib/lib" denotes destination C:\Program Files\kutils\alglib\lib
+
+
+# -------------------------------------------------
+# econOptim app program
+
+include_directories(
+  ${PROJECT_SOURCE_DIR}/src/
+  ${TINYXML2_INCLUDE_DIR}
+  ${ALGLIB_INCLUDE_DIR}
+)
+
+set(ECONOPTIM_SRCS
+ src/xml/xmlParser.cpp
+ src/minlm_d_v_example.cpp
+ )
+ 
+
+add_executable(econOptim
+  ${ECONOPTIM_SRCS}
+  )
+
+target_link_libraries(econOptim
+  ${ALGLIB_LIBRARIES}
+  ${TINYXML2_LIBRARIES}
+ )
+# -------------------------------------------------
+# show some useful status/debugging information
+
+message(STATUS "CMAKE_SYSTEM_NAME: " ${CMAKE_SYSTEM_NAME} )
+message(STATUS "Using PROJECT_SOURCE_DIR: " ${PROJECT_SOURCE_DIR})
+message(STATUS "ALGLIB_INSTALL_DIR: " ${ALGLIB_INSTALL_DIR})
+
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+# -------------------------------------------------
+# As of early 2014, C++11 is still not the default
+# for g++, so I have to provide it here.
+if (UNIX OR MINGW)
+	set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -std=c++11 -Dexprtk_disable_caseinsensitivity")
+endif(UNIX OR MINGW)
+
+if(WIN32)
+	set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj /Dexprtk_disable_caseinsensitivity")
+endif(WIN32)
+
+# --------------------------------------------
+# Copyright KAPSARC. Open source MIT License.
+# --------------------------------------------
+

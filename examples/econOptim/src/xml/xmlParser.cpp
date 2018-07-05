@@ -144,14 +144,14 @@ void KXml::setPolicies() {
 	}
 }
 
-KXml::policies KXml::getPolicyVariables() {
+KXml::policies KXml::getPolicyVariables() const {
 	return policyVariables;
 }
 
-KXml::policies KXml::getPolicyConstants() {
+KXml::policies KXml::getPolicyConstants() const {
 	return policyConstants;
 }
-std::vector<KXml::policyName> KXml::getPolicyVariableNames() {
+std::vector<KXml::policyName> KXml::getPolicyVariableNames() const {
 	return listOfPolicyVariableNames;
 }
 
@@ -173,7 +173,7 @@ void KXml::setParameters() {
 	}
 }
 
-KXml::parameters KXml::getParameters() {
+KXml::parameters KXml::getParameters() const {
 	return params;
 }
 
@@ -191,7 +191,7 @@ void KXml::setOptimizeFunctions() {
 	}
 }
 
-KXml::optimizingFunctions KXml::getOptimizeFunctions() {
+KXml::optimizingFunctions KXml::getOptimizeFunctions() const {
 	return systemOfFunctions;
 }
 
@@ -211,14 +211,14 @@ void KXml::setEquations() {
 	}
 }
 
-KXml::equations KXml::getEquationFunctions() {
+KXml::equations KXml::getEquationFunctions() const {
 	return equationFunctions;
 }
 
-KXml::listOfVariables KXml::getVariables() {
+KXml::listOfVariables KXml::getVariables() const {
 	return listOfVars;
 }
 
-KXml::initValExprMap KXml::getInitComputeExpressions() {
+KXml::initValExprMap KXml::getInitComputeExpressions() const {
 	return initValExpressions;
 }

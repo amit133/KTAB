@@ -160,127 +160,127 @@
     </parameters>
     <variables>
         <variable>
-            <name>OE0</name>
+            <name>OE</name>
             <initial>0.0305</initial>
             <compute></compute>
         </variable>
         <variable>
-            <name>N0</name>
+            <name>N</name>
             <initial>1.0</initial>
             <compute></compute>
         </variable>
         <variable>
-            <name>KP0</name>
+            <name>KP</name>
             <initial>5.6246</initial>
             <compute></compute>
         </variable>
         <variable>
-            <name>C0</name>
+            <name>C</name>
             <initial>0.9363</initial>
             <compute></compute>
         </variable>
         <variable>
-            <name>E0</name>
+            <name>E</name>
             <initial></initial>
-            <compute>alpha*OE0+beta*gexg+gamma*A*igexg/nu</compute>
+            <compute>alpha*OE+beta*gexg+gamma*A*igexg/nu</compute>
         </variable>
         <variable>
-            <name>G0</name>
+            <name>G</name>
             <initial></initial>
             <compute>gexg</compute>
         </variable>
         <variable>
-            <name>RNW0</name>
+            <name>RNW</name>
             <initial></initial>
             <compute>A*igexg/nu</compute>
         </variable>
         <variable>
-            <name>PE0</name>
+            <name>PE</name>
             <initial></initial>
             <compute>1/alpha*posubexg</compute>
         </variable>
         <variable>
-            <name>OS0</name>
+            <name>OS</name>
             <initial></initial>
-            <compute>E0*((1-a)/(alpha*a))^(1/(1-lambda))</compute>
+            <compute>E*((1-a)/(alpha*a))^(1/(1-lambda))</compute>
         </variable>
         <variable>
-            <name>S0</name>
+            <name>S</name>
             <initial></initial>
-            <compute>(a*E0^lambda+(1-a)*OS0^lambda)^(1/lambda)</compute>
+            <compute>(a*E^lambda+(1-a)*OS^lambda)^(1/lambda)</compute>
         </variable>
         <variable>
-            <name>PS0</name>
+            <name>PS</name>
             <initial></initial>
-            <compute>PE0/a*(E0^(1-lambda))*S0^(lambda-1)</compute>
+            <compute>PE/a*(E^(1-lambda))*S^(lambda-1)</compute>
         </variable>
         <variable>
-            <name>SF0</name>
+            <name>SF</name>
             <initial></initial>
-            <compute>KP0*(((RBAR+delta)*b)/(PS0*(1-b)))^(1/(1-niu))</compute>
+            <compute>KP*(((RBAR+delta)*b)/(PS*(1-b)))^(1/(1-niu))</compute>
         </variable>
         <variable>
-            <name>W0</name>
+            <name>W</name>
             <initial></initial>
-            <compute>theta*N0^(theta-1)*((1-b)*KP0^niu+b*SF0^niu)^((1-theta)/niu)</compute>
+            <compute>theta*N^(theta-1)*((1-b)*KP^niu+b*SF^niu)^((1-theta)/niu)</compute>
         </variable>
         <variable>
-            <name>R0</name>
+            <name>R</name>
             <initial></initial>
             <compute>RBAR+delta</compute>
         </variable>
         <variable>
-            <name>SH0</name>
+            <name>SH</name>
             <initial></initial>
-            <compute>S0-SF0</compute>
+            <compute>S-SF</compute>
         </variable>
         <variable>
-            <name>RSTAR0</name>
+            <name>RSTAR</name>
             <initial></initial>
             <compute>RBAR</compute>
         </variable>
         <variable>
-            <name>TR0</name>
+            <name>TR</name>
             <initial></initial>
-            <compute>PRNW0*RNW0+POSUB0*(OS0+OE0)+poaverage*(oexg-OS0-OE0)+PG0*gexg-igexg</compute>
+            <compute>PRNW*RNW+POSUB*(OS+OE)+poaverage*(oexg-OS-OE)+PG*gexg-igexg</compute>
         </variable>
         <variable>
-            <name>PO0</name>
+            <name>PO</name>
             <initial></initial>
             <compute>poaverage</compute>
         </variable>
         <variable>
-            <name>B0</name>
+            <name>B</name>
             <initial></initial>
-            <compute>-bss/RBAR*N0^theta*((1-b)*KP0^niu+b*SF0^niu)^((1-theta)/niu)</compute>
+            <compute>-bss/RBAR*N^theta*((1-b)*KP^niu+b*SF^niu)^((1-theta)/niu)</compute>
         </variable>
         <variable>
-            <name>O0</name>
+            <name>O</name>
             <initial></initial>
             <compute>oexg</compute>
         </variable>
         <variable>
-            <name>KG0</name>
+            <name>KG</name>
             <initial></initial>
             <compute>igexg/nu</compute>
         </variable>
         <variable>
-            <name>Y0</name>
+            <name>Y</name>
             <initial></initial>
-            <compute>N0^theta*((1-b)*KP0^niu+b*SF0^niu)^((1-theta)/niu)</compute>
+            <compute>N^theta*((1-b)*KP^niu+b*SF^niu)^((1-theta)/niu)</compute>
         </variable>
     </variables>
     <policy>
         <variable>
-            <name>POSUB0</name>
+            <name>POSUB</name>
             <base>0.5</base>
         </variable>
         <variable>
-            <name>PG0</name>
+            <name>PG</name>
             <base>0.6563</base>
         </variable>
         <variable>
-            <name>PRNW0</name>
+            <name>PRNW</name>
             <base>1.5625</base>
         </variable>
         <constant>

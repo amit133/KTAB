@@ -1,7 +1,7 @@
 #include <string>
 #include <vector>
 #include <map>
-#include "tinyxml2.h"
+#include <tinyxml2.h>
 
 class KXml {
 private:
@@ -62,14 +62,14 @@ public:
 	KXml& operator=(const KXml&) = delete;
 	explicit KXml(std::string & xmlFileName);
 
-	listOfVariables getVariables();
-	initValExprMap getInitComputeExpressions();
-	parameters getParameters();
-	optimizingFunctions getOptimizeFunctions();
-	policies getPolicyVariables();
-	policies getPolicyConstants();
-	std::vector<policyName> getPolicyVariableNames();
-	equations getEquationFunctions();
+	listOfVariables getVariables() const;
+	initValExprMap getInitComputeExpressions() const;
+	parameters getParameters() const;
+	optimizingFunctions getOptimizeFunctions() const;
+	policies getPolicyVariables() const;
+	policies getPolicyConstants() const;
+	std::vector<policyName> getPolicyVariableNames() const;
+	equations getEquationFunctions() const;
 	actorUtilities getActorUtilities() const;
 };
 
