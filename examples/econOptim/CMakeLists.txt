@@ -30,7 +30,7 @@ set(CMAKE_MODULE_PATH
   )
 
 set (LOCAL_MODULE_DIR
-    ${PROJECT_SOURCE_DIR}/cmakemodules)
+    ${PROJECT_SOURCE_DIR}/../../KTAB/cmakemodules)
 
 set(CMAKE_MODULE_PATH
     ${CMAKE_MODULE_PATH}
@@ -87,8 +87,9 @@ include_directories(
 )
 
 set(ECONOPTIM_SRCS
- src/xml/xmlParser.cpp
- src/minlm_d_v_example.cpp
+  src/EconOptimizer.cpp
+  src/xml/xmlParser.cpp
+  src/minlm_d_v_example.cpp
  )
  
 
