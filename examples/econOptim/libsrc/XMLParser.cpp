@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cassert>
-#include "xmlParser.h"
+#include "XMLParser.h"
 
 using namespace std;
 using namespace tinyxml2;
