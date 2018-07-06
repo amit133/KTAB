@@ -51,7 +51,7 @@ endif(ALGLIB_LIBRARIES)
 
 # if not found, stop immediately
 if(NOT ALGLIB_FOUND)
-  message(FATAL_ERROR "Could not find both Alglib library")
+  message(FATAL_ERROR "Could not find Alglib library")
 endif(NOT ALGLIB_FOUND)	
 
 # --------------------------------------------

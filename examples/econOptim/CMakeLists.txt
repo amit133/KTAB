@@ -37,6 +37,9 @@ set(CMAKE_MODULE_PATH
     ${LOCAL_MODULE_DIR}
     )
 
+set(CMAKE_BUILD_TYPE Debug)
+
+set(LIBRARY_OUTPUT_PATH      ${PROJECT_SOURCE_DIR}/)
 set(EXECUTABLE_OUTPUT_PATH   ${PROJECT_SOURCE_DIR}/)
 
 # -------------------------------------------------
@@ -67,37 +70,44 @@ endif (NOT TINYXML2_FOUND)
 find_package(Alglib)
 
 # -------------------------------------------------
-# files to be built into a library go in libsrc/
-# any application or testing code goes in src
+find_package(Exprtk)
 
 # -------------------------------------------------
-# Under Linux, default start of DESTINATION path is /usr/local/ 
-# so "alglib/lib" denotes destination /usr/local/alglib/lib
-# Under Windows, default start of DESTINATION path is "C:\Program Files\kutils\"
-# so "alglib/lib" denotes destination C:\Program Files\kutils\alglib\lib
-
+# files to be built into a library go in libsrc/
+# any application or testing code goes in src
 
 # -------------------------------------------------
 # econOptim app program
 
 include_directories(
-  ${PROJECT_SOURCE_DIR}/src/
+  ${PROJECT_SOURCE_DIR}/libsrc/
   ${TINYXML2_INCLUDE_DIR}
   ${ALGLIB_INCLUDE_DIR}
+  ${EXPRTK_INCLUDE_DIR}
 )
 
-set(ECONOPTIM_SRCS
-  src/EconOptimizer.cpp
-  src/xml/xmlParser.cpp
-  src/minlm_d_v_example.cpp
+set(ECONOPTIM_LIB_SRCS
+  ${PROJECT_SOURCE_DIR}/libsrc/EconOptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/libsrc/XMLParser.cpp
  )
- 
 
-add_executable(econOptim
-  ${ECONOPTIM_SRCS}
+add_library(econoptim STATIC ${ECONOPTIM_LIB_SRCS})
+
+target_link_libraries(econoptim
+  ${ALGLIB_LIBRARIES}
+  ${TINYXML2_LIBRARIES}
+ )
+
+set(ECONOPTIM_DEMO_SRCS
+  ${PROJECT_SOURCE_DIR}/src/minlm_d_v_example.cpp
+ )
+
+add_executable(demoEconOptim
+  ${ECONOPTIM_DEMO_SRCS}
   )
 
-target_link_libraries(econOptim
+target_link_libraries(demoEconOptim
+  econoptim
   ${ALGLIB_LIBRARIES}
   ${TINYXML2_LIBRARIES}
  )
