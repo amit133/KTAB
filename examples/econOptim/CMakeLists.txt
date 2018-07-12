@@ -118,7 +118,6 @@ message(STATUS "CMAKE_SYSTEM_NAME: " ${CMAKE_SYSTEM_NAME} )
 message(STATUS "Using PROJECT_SOURCE_DIR: " ${PROJECT_SOURCE_DIR})
 message(STATUS "ALGLIB_INSTALL_DIR: " ${ALGLIB_INSTALL_DIR})
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 # -------------------------------------------------
 # As of early 2014, C++11 is still not the default
 # for g++, so I have to provide it here.

@@ -1,6 +1,14 @@
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 # We extended the standard .gitignore from GitHub to ignore the marked additions
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# Build stuff
+# generated directories of build products
+build/
+# generated directories of Debug versions
+Debug/
+# generated directories of Release versions
+Release/
+
 # Compiled Object files
 *.slo
 *.lo
@@ -31,6 +39,20 @@
 
 # Executables
 *.exe
+demomodel
+leonApp
+mtchApp
+demoutils
+agdemo
+csg
+mwdemo
+pmdemo
+rpdemo
+KTAB_SMP
+smpc
+smpcDyn
+
+
 # intermediate build products
 *.exe*    
 *.out
@@ -40,14 +62,6 @@
 *.suo
 *.VC.db
 
-
-# Build stuff
-# generated directories of build products
-build*      
-# generated directories of Debug versions           
-Debug*        
-# generated directories of Release versions         
-Release*     
 # cached by CMake          
 CMakeLists.txt.user    
 
@@ -55,5 +69,6 @@ CMakeLists.txt.user
 .kdev4*
 *.kdev4
 
-
+# log files
+*log.txt
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
