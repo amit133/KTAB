@@ -50,12 +50,12 @@ void EconOptimzer::setInitValuesOfVars() {
         // Add each constant name with its value in the symbol table
         symbol_table_initvals.add_constant(var, varValue);
 
-        initValues += to_string(varValue) + ",";
+        initValues += std::to_string(varValue) + ",";
     }
 
     auto policyVarNames = xmlParser.getPolicyVariableNames();
     for(auto policyName : policyVarNames) {
-        initValues += to_string(policyVariables.at(policyName)) + ",";
+        initValues += std::to_string(policyVariables.at(policyName)) + ",";
     }
 
     // Replace the last comma with a square bracket
@@ -110,7 +110,7 @@ void EconOptimzer::setMathExpressions() {
     }
 }
 
-void EconOptimzer::function1_fvec(const real_1d_array &x, real_1d_array &fi, void *ptr)
+void EconOptimzer::optimize_fvec(const real_1d_array &x, real_1d_array &fi, void *ptr)
 {
 
     //
@@ -149,7 +149,7 @@ void EconOptimzer::optimize() {
     minlmcreatev(25, 25, x, 0.000001, state);
     minlmsetcond(state, epsx, maxits);
 
-    alglib::minlmoptimize(state, &EconOptimzer::function1_fvec);
+    alglib::minlmoptimize(state, &EconOptimzer::optimize_fvec);
 
     minlmresults(state, x, rep);
 

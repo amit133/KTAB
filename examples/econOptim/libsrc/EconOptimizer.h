@@ -33,7 +33,7 @@ private:
     Solution optimumSolution;
 
     // We need a static member function as it would serve as the callback function for the optimzer algorithm
-    static void function1_fvec(const alglib::real_1d_array &x, alglib::real_1d_array &fi, void *ptr);
+    static void optimize_fvec(const alglib::real_1d_array &x, alglib::real_1d_array &fi, void *ptr);
 
 public:
     EconOptimzer(KXml &xmlParser): xmlParser(xmlParser) {
