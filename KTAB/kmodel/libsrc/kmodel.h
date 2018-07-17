@@ -39,7 +39,6 @@
 #ifndef KTAB_MODEL_H
 #define KTAB_MODEL_H
 
-#include <sqlite3.h>
 
 #include "kutils.h"
 #include "kmatrix.h"

@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iomanip>
 #include <functional>
+#include <easylogging++.h>
 
 using namespace std;
 using namespace alglib;
@@ -12,37 +13,60 @@ using namespace alglib;
 vector<EconOptimzer::expression_t> EconOptimzer::expressions;
 vector<double> EconOptimzer::z;
 
-void EconOptimzer::setInitValuesOfVars() {
+void EconOptimzer::setInitValuesOfVars(KMatrix genPolicy) {
+	initValuesList.clear();
 	listOfVars = xmlParser.getVariables();
 	auto initValExpressions = xmlParser.getInitComputeExpressions();
 
     symbol_table_t symbol_table_initvals;
     symbol_table_initvals.add_constants();
- 
+
+	// TODO Find out if a generated policy would be used to compute the init values before calling the optimizer
     auto params = xmlParser.getParameters();
     for(auto param : params) {
         symbol_table_initvals.add_constant(param.first, param.second);
     }
 
-    auto policyVariables = xmlParser.getPolicyVariables();
-    for(auto policy : policyVariables) {
-        symbol_table_initvals.add_constant(policy.first, policy.second);
-    }
+	// Base policy details come from the input xml file and only one run is needed to get the base actor utilities.
+	if (isBasePolicy) {
+		auto policyVariables = xmlParser.getPolicyVariables();
+		for (auto policy : policyVariables) {
+			symbol_table_initvals.add_constant(policy.first, policy.second);
+			initValuesList[policy.first] = policy.second;
+		}
 
-    auto policyConsts = xmlParser.getPolicyConstants();
-    for(auto policy : policyConsts) {
-        symbol_table_initvals.add_constant(policy.first, policy.second);
-    }
+		auto policyConsts = xmlParser.getPolicyConstants();
+		for (auto policy : policyConsts) {
+			symbol_table_initvals.add_constant(policy.first, policy.second);
+		}
+
+		isBasePolicy = false;
+	}
+	else { // This is a case of randomly generated policy
+		auto policyVarNames = xmlParser.getPolicyVariableNames();
+		auto policyVarCount = policyVarNames.size();
+		for (auto j = 0; j < policyVarCount; ++j) {
+			symbol_table_initvals.add_constant(policyVarNames[j], genPolicy(0, j));
+			cout << "Random policy " << policyVarNames[j] << " = " << genPolicy(0, j);
+			initValuesList[policyVarNames[j]] = genPolicy(0, j);
+		}
+
+		// Use policy constants
+		auto policyConsts = xmlParser.getPolicyConstantNames();
+		for (auto j = policyVarCount; j < policyVarCount + policyConsts.size(); ++j) {
+			symbol_table_initvals.add_constant(policyConsts[j- policyVarCount], genPolicy(0, j));
+		}
+	}
 
     parser_t parser;
 
     expression_t expr;
     expr.register_symbol_table(symbol_table_initvals);
 
-    initValues += "[";
+//    initValuesStr += "[";
 
     for(auto var : listOfVars) {
-        parser.compile(initValExpressions[var] , expr);
+        parser.compile(initValExpressions.at(var) , expr);
 
         // evaluate the expression to find the initial value of a variable
         auto varValue = expr.value();
@@ -50,20 +74,44 @@ void EconOptimzer::setInitValuesOfVars() {
         // Add each constant name with its value in the symbol table
         symbol_table_initvals.add_constant(var, varValue);
 
-        initValues += std::to_string(varValue) + ",";
+		initValuesList[var] = varValue;
+
+//        initValuesStr += std::to_string(varValue) + ",";
     }
 
-    auto policyVarNames = xmlParser.getPolicyVariableNames();
-    for(auto policyName : policyVarNames) {
-        initValues += std::to_string(policyVariables.at(policyName)) + ",";
-    }
+  //  auto policyVarNames = xmlParser.getPolicyVariableNames();
+  //  for(auto policyName : policyVarNames) {
+		//initValuesStr += std::to_string(policyVariables.at(policyName)) + ",";
+  //  }
 
     // Replace the last comma with a square bracket
-    initValues.back() = ']';
+    //initValuesStr.back() = ']';
+	for (auto inival : initValuesList) {
+		LOG(INFO) << inival.first << inival.second;
+	}
 }
 
-string EconOptimzer::getInitVals() const {
-    return initValues;
+string EconOptimzer::getInitVals() {
+	LOG(INFO) << "In getInitVals";
+	initValuesStr = "[";
+
+	for (auto var : listOfVars) {
+		initValuesStr += std::to_string(initValuesList.at(var)) + ",";
+		LOG(INFO) << initValuesStr;
+	}
+
+	auto policyVarNames = xmlParser.getPolicyVariableNames();
+//	auto policyVariables = xmlParser.getPolicyVariables();
+	for (auto policyName : policyVarNames) {
+		initValuesStr += std::to_string(initValuesList.at(policyName)) + ",";
+		LOG(INFO) << initValuesStr;
+	}
+
+	// Replace the last comma with a square bracket
+	initValuesStr.back() = ']';
+	LOG(INFO) << initValuesStr;
+
+	return initValuesStr;
 }
 
 void EconOptimzer::setSymbolTable() {
@@ -94,6 +142,16 @@ void EconOptimzer::setSymbolTable() {
     }
     
     symbol_table.add_constants();
+}
+
+void EconOptimzer::resetPolicyConstsInSymTable(KMatrix &genPolicy) {
+	auto policyVarCount = xmlParser.getPolicyVariableNames().size();
+	// Use policy constants
+	auto policyConsts = xmlParser.getPolicyConstantNames();
+	for (auto j = policyVarCount; j < policyVarCount + policyConsts.size(); ++j) {
+		symbol_table.remove_variable(policyConsts[j - policyVarCount]);
+		symbol_table.add_constant(policyConsts[j - policyVarCount], genPolicy(0, j));
+	}
 }
 
 void EconOptimzer::setMathExpressions() {
@@ -139,8 +197,9 @@ void EconOptimzer::optimize_fvec(const real_1d_array &x, real_1d_array &fi, void
 }
 
 void EconOptimzer::optimize() {
-    cout << "Initial values of variables: " << initValues << endl << endl;
-    real_1d_array x = initValues.c_str();
+	getInitVals();
+    cout << "Initial values of variables: " << initValuesStr << endl << endl;
+    real_1d_array x = initValuesStr.c_str();
     double epsx = 0.0000000001;
     ae_int_t maxits = 0;
     minlmstate state;
@@ -157,19 +216,11 @@ void EconOptimzer::optimize() {
 
     for(auto var: listOfVars) {
         optimumSolution[var] = x[x_index];
-        // symbol_table.remove_variable(var.substr(0, var.length()-1));
-        symbol_table.remove_variable(var);
-        // symbol_table.add_constant(var.substr(0, var.length()-1), x[x_index]);
-        symbol_table.add_constant(var, x[x_index]);
         ++x_index;
     }
 
     for(auto var: xmlParser.getPolicyVariableNames()) {
         optimumSolution[var] = x[x_index];
-        // symbol_table.remove_variable(var.substr(0, var.length()-1));
-        symbol_table.remove_variable(var);
-        // symbol_table.add_constant(var.substr(0, var.length()-1), x[x_index]);
-        symbol_table.add_constant(var, x[x_index]);
         ++x_index;
     }
 
@@ -179,12 +230,10 @@ void EconOptimzer::optimize() {
     streamsize ss = cout.precision();
     cout << setprecision(4);
     for(auto var: listOfVars) {
-        // cout << var.substr(0, var.length()-1) << ":       " << optimumSolution.at(var) << endl;
         cout << var << ":       " << optimumSolution.at(var) << endl;
     }
 
     for(auto var: xmlParser.getPolicyVariableNames()) {
-        // cout << var.substr(0, var.length()-1) << ": " << optimumSolution.at(var) << endl;
         cout << var << ": " << optimumSolution.at(var) << endl;
     }
 
@@ -196,16 +245,34 @@ void EconOptimzer::calcActorUtils() {
     parser_t parser;
 
     expression_t expr;
-    expr.register_symbol_table(symbol_table);
 
-    auto equationFunctions = xmlParser.getEquationFunctions();
+	// Make a copy of the symbol table as the old symbol would be used in another optimization operation
+	symbol_table_t symbol_table_utils(symbol_table);
+	expr.register_symbol_table(symbol_table_utils);
+
+	// The variables used in the optimized equations have got some definite values after the optimization process.
+	// Use them in the symbol table as constants for further computes.
+	for (auto var : listOfVars) {
+		symbol_table_utils.remove_variable(var);
+		symbol_table_utils.add_constant(var, optimumSolution.at(var));
+	}
+
+	for (auto var : xmlParser.getPolicyVariableNames()) {
+		symbol_table_utils.remove_variable(var);
+		symbol_table_utils.add_constant(var, optimumSolution.at(var));
+	}
+	
+	auto equationFunctions = xmlParser.getEquationFunctions();
 
     cout << "Contribution of different factors: " << endl;
     for(auto func : equationFunctions) {
         parser.compile(func.second, expr);
         double funcValue = expr.value();
-        symbol_table.add_constant(func.first, funcValue);
-        // cout << func.first << " (" << func.second << "): " << funcValue << endl;
+
+		// Add the computed value to the symbol table
+        //symbol_table.add_constant(func.first, funcValue);
+		symbol_table_utils.add_constant(func.first, funcValue);
+		// cout << func.first << " (" << func.second << "): " << funcValue << endl;
         cout << func.first << ": " << funcValue << endl;
     }
     cout << endl;
@@ -220,4 +287,36 @@ void EconOptimzer::calcActorUtils() {
         cout << "Util of " << actorUtil.first << ": " << aUtil << endl;
     }
     cout << endl;
+}
+
+KMatrix EconOptimzer::createPolicies(unsigned int policyCount, PRNG * rng)
+{
+	unsigned int policyElementsCount = xmlParser.getPolicyVariableNames().size() + xmlParser.getPolicyConstantNames().size();
+	//unsigned int policyElementsCount = xmlParser.getPolicyVariableNames().size();
+
+	// A policy is a combination of different factors or policyElements and we need to generate 2500 or more such combinations
+	auto policies = KMatrix(policyCount, policyElementsCount);
+
+	// Generate a policy
+	auto makeRand = [rng]() {
+		// Amit: Is it fine to provide range for a policy value in the input xml?
+		double ti = rng->uniform(0, +1);
+		//if (ti < 0) {
+		//	ti = ti * maxSub;
+		//}
+		//if (0 < ti) {
+		//	ti = ti * maxTax;
+		//}
+		return ti;
+	};
+
+	for (unsigned int i = 0; i < policyCount; ++i) {
+		// Generate a policy. The order of the policy elements matches with that of xml input
+		for (unsigned int j = 0; j < policyElementsCount; j++) {
+			policies(i, j) = makeRand();
+		}
+	}
+
+	generatedPolicies = policies;
+	return policies;
 }

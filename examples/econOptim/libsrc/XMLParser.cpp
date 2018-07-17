@@ -123,9 +123,21 @@ void KXml::setPolicies() {
 
 		auto policyName = policyNameElem->GetText();
 
+		// Each policy would have a set of base values called as base policy
 		auto policyBaseElem = policyElem->FirstChildElement("base");
 		auto policyBase = policyBaseElem->DoubleText();
 
+		std::map<std::string, std::tuple<double, double>> policyRanges;
+
+		auto policyLowLimitElem = policyElem->FirstChildElement("lowlimit");
+		auto policyLowerLimit = policyLowLimitElem->DoubleText();
+
+		auto policyHighLimitElem = policyElem->FirstChildElement("highlimit");
+		auto policyHigherLimit = policyHighLimitElem->DoubleText();
+
+		policyRanges[policyName] = tuple<double, double>(policyLowerLimit, policyHigherLimit);
+
+		// There could two categories of policies. One which would be optimized (variable) and the other which would be used as a constant value (constant)
 		string policyType = policyElem->Name();
 		//cout << "policy Name " << policyElem->Name() << endl;
 		if(policyType == "variable") {
@@ -134,6 +146,7 @@ void KXml::setPolicies() {
 			policyVariables[policyName] = policyBase;
 		} else if(policyType == "constant") {
 			//cout << "policy constant, " << policyName << ": " << policyBase << endl;
+			listOfPolicyConstantNames.push_back(policyName);
 			policyConstants[policyName] = policyBase;
 		} else {
 			cerr << "Invalid xml tag under policy" << endl;
@@ -151,8 +164,13 @@ KXml::policies KXml::getPolicyVariables() const {
 KXml::policies KXml::getPolicyConstants() const {
 	return policyConstants;
 }
+
 std::vector<KXml::policyName> KXml::getPolicyVariableNames() const {
 	return listOfPolicyVariableNames;
+}
+
+std::vector<KXml::policyName> KXml::getPolicyConstantNames() const {
+	return listOfPolicyConstantNames;
 }
 
 void KXml::setParameters() {

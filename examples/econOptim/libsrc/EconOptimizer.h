@@ -4,6 +4,12 @@
 #include <optimization.h>
 #include <exprtk.hpp>
 #include "XMLParser.h"
+#include <KMatrix.h>
+#include <prng.h>
+
+
+using KBase::KMatrix;
+using KBase::PRNG;
 
 class EconOptimzer {
 private:
@@ -22,11 +28,13 @@ private:
 
     typedef std::string varName;
     std::vector<varName> listOfVars;
+	typedef double varValue;
 
     typedef exprtk::parser<double> parser_t;
 
     // The string would contain a comma separated list of initial values of all equation variables and policy variables
-    std::string initValues;
+    std::string initValuesStr;
+	std::map<varName, varValue> initValuesList;
 
     // data structure to store the optimized solution
     typedef std::map<std::string, double> Solution;
@@ -35,13 +43,20 @@ private:
     // We need a static member function as it would serve as the callback function for the optimzer algorithm
     static void optimize_fvec(const alglib::real_1d_array &x, alglib::real_1d_array &fi, void *ptr);
 
+	bool isBasePolicy = true;
+
+	KMatrix generatedPolicies;
+
 public:
     EconOptimzer(KXml &xmlParser): xmlParser(xmlParser) {
     }
-    void setInitValuesOfVars();
-    std::string getInitVals() const;
+	void setInitValuesOfVars(KMatrix genPolicy = KMatrix{});
+    std::string getInitVals();
     void setSymbolTable();
     void setMathExpressions();
     void optimize();
     void calcActorUtils();
+
+	KMatrix createPolicies(unsigned int policyCount, PRNG* rng);
+	void EconOptimzer::resetPolicyConstsInSymTable(KMatrix &policy);
 };

@@ -23,6 +23,7 @@
 
 //#include <assert.h>
 #include <easylogging++.h>
+#include <sqlite3.h>
 #include <sstream>
 #include <algorithm>
 

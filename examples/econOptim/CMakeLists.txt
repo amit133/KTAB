@@ -72,6 +72,31 @@ find_package(Alglib)
 # -------------------------------------------------
 find_package(Exprtk)
 
+#--------------------------------------------------
+find_package(qtlibs)
+set(CMAKE_PREFIX_PATH ${PREFIX_PATH})
+message(STATUS "CMAKE_PREFIX_PATH" ${CMAKE_PREFIX_PATH})
+find_package(Qt5 REQUIRED COMPONENTS Core Sql)
+
+
+# --------------------------------------------------------
+# See "Findkutils.cmake" in cmakemodules to figure
+# out where it looks and what variables it sets
+find_package(kutils)
+if(NOT KUTILS_FOUND)
+    message(FATAL_ERROR "Could not find kutils")
+endif(NOT KUTILS_FOUND)
+
+
+# Ditto for "Findkmodel.cmake"
+find_package(kmodel)
+if(NOT KMODEL_FOUND)
+    message(FATAL_ERROR "Could not find kmodel")
+endif(NOT KMODEL_FOUND)
+
+# -------------------------------------------------
+find_package(Easyloggingpp)
+
 # -------------------------------------------------
 # files to be built into a library go in libsrc/
 # any application or testing code goes in src
@@ -80,10 +105,13 @@ find_package(Exprtk)
 # econOptim app program
 
 include_directories(
+  ${KUTILS_INCLUDE_DIR}
+  ${KMODEL_INCLUDE_DIR}
   ${PROJECT_SOURCE_DIR}/libsrc/
   ${TINYXML2_INCLUDE_DIR}
   ${ALGLIB_INCLUDE_DIR}
   ${EXPRTK_INCLUDE_DIR}
+  ${LOGGER_INCLUDE_DIR}
 )
 
 set(ECONOPTIM_LIB_SRCS
@@ -94,8 +122,12 @@ set(ECONOPTIM_LIB_SRCS
 add_library(econoptim STATIC ${ECONOPTIM_LIB_SRCS})
 
 target_link_libraries(econoptim
+  ${KMODEL_LIBRARY}
+  ${KUTILS_LIBRARY}
   ${ALGLIB_LIBRARIES}
   ${TINYXML2_LIBRARIES}
+  ${LOGGER_LIBRARY}
+    Qt5::Sql
  )
 
 set(ECONOPTIM_DEMO_SRCS
@@ -108,8 +140,12 @@ add_executable(demoEconOptim
 
 target_link_libraries(demoEconOptim
   econoptim
+  ${KMODEL_LIBRARY}
+  ${KUTILS_LIBRARY}
   ${ALGLIB_LIBRARIES}
   ${TINYXML2_LIBRARIES}
+  ${LOGGER_LIBRARY}
+    Qt5::Sql
  )
 # -------------------------------------------------
 # show some useful status/debugging information

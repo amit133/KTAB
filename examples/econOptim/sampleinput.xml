@@ -274,22 +274,32 @@
         <variable>
             <name>POSUB</name>
             <base>0.5</base>
+            <lowlimit>0.2</lowlimit>
+            <highlimit>1.0</highlimit>
         </variable>
         <variable>
             <name>PG</name>
             <base>0.6563</base>
+            <lowlimit>0.2625</lowlimit>
+            <highlimit>1.3125</highlimit>
         </variable>
         <variable>
             <name>PRNW</name>
             <base>1.5625</base>
+            <lowlimit>0.6250</lowlimit>
+            <highlimit>3.1250</highlimit>
         </variable>
         <constant>
             <name>igexg</name>
             <base>0</base>
+            <lowlimit>0</lowlimit>
+            <highlimit>0.016</highlimit>
         </constant>
         <constant>
             <name>laborShare</name>
             <base>0.5</base>
+            <lowlimit>0</lowlimit>
+            <highlimit>1.0</highlimit>
         </constant>
     </policy>
     <optimize>
