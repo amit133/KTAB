@@ -226,12 +226,12 @@ void EconOptimzer::optimize() {
     //streamsize ss = cout.precision();
     //cout << setprecision(4);
     for(auto var: listOfVars) {
-        LOG(INFO) << KBase::getFormattedString("%s : %.4f", var.c_str(), optimumSolution.at(var)); //var << ":       " << optimumSolution.at(var);
+        LOG(INFO) << KBase::getFormattedString("%s : %.4f", var.c_str(), optimumSolution.at(var));
     }
 
     for(auto var: xmlParser.getPolicyVariableNames()) {
-        LOG(INFO) << var << ": " << optimumSolution.at(var);
-    }
+		LOG(INFO) << KBase::getFormattedString("%s : %.4f", var.c_str(), optimumSolution.at(var));
+	}
 
 	LOG(INFO) << "";
     //cout << setprecision(ss);
