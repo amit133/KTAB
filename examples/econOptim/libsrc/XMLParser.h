@@ -25,6 +25,8 @@ private:
 	policies policyConstants;
 	std::vector<policyName> listOfPolicyVariableNames;
 	std::vector<policyName> listOfPolicyConstantNames;
+	typedef std::map<std::string, std::tuple<double, double>> policyRange;
+	policyRange policyRanges;
 
 	// parameters
 	typedef std::string paramName;
@@ -71,6 +73,7 @@ public:
 	policies getPolicyConstants() const;
 	std::vector<policyName> getPolicyVariableNames() const;
 	std::vector<policyName> getPolicyConstantNames() const;
+	policyRange getPolicyRanges() const;
 	equations getEquationFunctions() const;
 	actorUtilities getActorUtilities() const;
 };

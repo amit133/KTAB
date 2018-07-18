@@ -127,8 +127,6 @@ void KXml::setPolicies() {
 		auto policyBaseElem = policyElem->FirstChildElement("base");
 		auto policyBase = policyBaseElem->DoubleText();
 
-		std::map<std::string, std::tuple<double, double>> policyRanges;
-
 		auto policyLowLimitElem = policyElem->FirstChildElement("lowlimit");
 		auto policyLowerLimit = policyLowLimitElem->DoubleText();
 
@@ -171,6 +169,11 @@ std::vector<KXml::policyName> KXml::getPolicyVariableNames() const {
 
 std::vector<KXml::policyName> KXml::getPolicyConstantNames() const {
 	return listOfPolicyConstantNames;
+}
+
+KXml::policyRange KXml::getPolicyRanges() const
+{
+	return policyRanges;
 }
 
 void KXml::setParameters() {

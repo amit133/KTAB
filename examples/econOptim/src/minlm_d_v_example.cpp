@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     // Calculate actor utilities based on optimized solution
     econOptim.calcActorUtils();
 
-    cout << endl;
+    //cout << endl;
 
 	PRNG * rng = new PRNG();
 	uint64_t seed = 0;
@@ -44,36 +44,50 @@ int main(int argc, char **argv)
 	LOG(INFO) << KBase::getFormattedString("Using PRNG seed:  %020llu", seed);
 	LOG(INFO) << KBase::getFormattedString("Same seed in hex:   0x%016llX", seed);
 
-	unsigned int policyCount = 2;
+	unsigned int policyCount = 0;
 
+	cout << "Enter the number of policies you need to generate: ";
+	cin >> policyCount;
 	// Create policies
 	auto policies = econOptim.createPolicies(policyCount, rng);
 	LOG(INFO) << "Generated Policies: ";
 	policies.mPrintf(" %.6f ");
+	LOG(INFO) << "";
 
 	for (auto i = 0; i < policyCount; ++i) {
 		auto policy = hSlice(policies, i);
-		LOG(INFO) << "Policy set: ";
-		policy.mPrintf(" %.6f ");
+		//LOG(INFO) << "Policy set: ";
+		//policy.mPrintf(" %.6f ");
+
+		econOptim.setInitValuesOfVars(policy);
+		econOptim.resetPolicyConstsInSymTable(policy);
+
+		// Run the optimizer
+		econOptim.optimize();
+
+		// Calculate actor utilities based on optimized solution
+		econOptim.calcActorUtils();
+
+		//cout << endl;
 	}
 
-	KMatrix policy(1, 5);
-	policy(0, 0) = 0.5; // POSUB
-	policy(0, 1) = 0.6563; // PG
-	policy(0, 2) = 1.5625; // PRNW
-	policy(0, 3) = 0; // igexg
-	policy(0, 4) = 0.5; // laborShare
+	//KMatrix policy(1, 5);
+	//policy(0, 0) = 0.5; // POSUB
+	//policy(0, 1) = 0.6563; // PG
+	//policy(0, 2) = 1.5625; // PRNW
+	//policy(0, 3) = 0; // igexg
+	//policy(0, 4) = 0.5; // laborShare
 
-	econOptim.setInitValuesOfVars(policy);
-	econOptim.resetPolicyConstsInSymTable(policy);
+	//econOptim.setInitValuesOfVars(policy);
+	//econOptim.resetPolicyConstsInSymTable(policy);
 
-	// Run the optimizer
-	econOptim.optimize();
+	//// Run the optimizer
+	//econOptim.optimize();
 
-	// Calculate actor utilities based on optimized solution
-	econOptim.calcActorUtils();
+	//// Calculate actor utilities based on optimized solution
+	//econOptim.calcActorUtils();
 
-	cout << endl;
+	//cout << endl;
 
 	return 0;
 }
