@@ -4,7 +4,7 @@
 #include <optimization.h>
 #include <exprtk.hpp>
 #include "XMLParser.h"
-#include <KMatrix.h>
+#include <kmatrix.h>
 #include <prng.h>
 
 
@@ -58,5 +58,5 @@ public:
     void calcActorUtils();
 
 	KMatrix createPolicies(unsigned int policyCount, PRNG* rng);
-	void EconOptimzer::resetPolicyConstsInSymTable(KMatrix &policy);
+	void resetPolicyConstsInSymTable(KMatrix &policy);
 };

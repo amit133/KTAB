@@ -97,6 +97,9 @@ endif(NOT KMODEL_FOUND)
 # -------------------------------------------------
 find_package(Easyloggingpp)
 
+#Enable export of all classes and functions for windows platform
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 # -------------------------------------------------
 # files to be built into a library go in libsrc/
 # any application or testing code goes in src

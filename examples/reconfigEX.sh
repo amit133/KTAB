@@ -9,7 +9,7 @@ set -e
 # "Unix Makefiles", unless the first argument is non-null.
 #------------------------------------------
 
-DIRS=" minwater  agenda  reformpri  smp  comsel  pmatrix"
+DIRS=" minwater  agenda  reformpri  smp  comsel  pmatrix econOptim"
 
 DQ="\""
 DEFGEN="Unix Makefiles"
