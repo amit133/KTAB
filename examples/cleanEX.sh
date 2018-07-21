@@ -6,7 +6,7 @@
 #
 #------------------------------------------
 
-DIRS=" minwater  agenda  reformpri  smp  comsel  pmatrix"
+DIRS=" minwater  agenda  reformpri  smp  comsel  pmatrix econOptim"
 
 for d in $DIRS
 do
