@@ -120,6 +120,7 @@ include_directories(
 set(ECONOPTIM_LIB_SRCS
   ${PROJECT_SOURCE_DIR}/libsrc/EconOptimizer.cpp
   ${PROJECT_SOURCE_DIR}/libsrc/XMLParser.cpp
+  ${PROJECT_SOURCE_DIR}/libsrc/EconOptimModel.cpp
  )
 
 add_library(econoptim STATIC ${ECONOPTIM_LIB_SRCS})
